@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CBA — Continuous Beam Analysis · Lumax Energy</title>
+  <meta name="description" content="CBA by Lumax Energy — offline Euler–Bernoulli continuous beam analysis. Up to 24 spans, combinations, diagrams, envelopes and QA.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%20fill%3D%22none%22%3E%0A%20%20%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%228%22%20fill%3D%22%23070d14%22%2F%3E%0A%20%20%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2230%22%20height%3D%2230%22%20rx%3D%227%22%20stroke%3D%22%231B7AC7%22%20stroke-opacity%3D%220.45%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M4%2016.5h24%22%20stroke%3D%22%23e8eef5%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M8%2016.5v6M16%2016.5v6M24%2016.5v6%22%20stroke%3D%22%237fb4d9%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M8%2023.2l-2.2%203.4h4.4L8%2023.2zM16%2023.2l-2.2%203.4h4.4L16%2023.2zM24%2023.2l-2.2%203.4h4.4L24%2023.2z%22%20fill%3D%22%231B7AC7%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M6%2012.2c2.4-3.2%205.6-4.6%2010-4.6s7.6%201.4%2010%204.6%22%20stroke%3D%22%2348a0e0%22%20stroke-width%3D%221.2%22%20fill%3D%22none%22%2F%3E%0A%3C%2Fsvg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+:root {
+  --color-bg: #070d14;
+  --color-surface: #0e1620;
+  --color-elevated: #152233;
+  --color-inset: #0a121b;
+  --color-fg: #e8eef5;
+  --color-muted: #8fa3b8;
+  --color-subtle: #5f7388;
+  --color-border: color-mix(in oklab, #7fb4d9 18%, transparent);
+  --color-border-strong: color-mix(in oklab, #7fb4d9 32%, transparent);
+  --color-accent: #48a0e0;
+  --color-accent-fg: #041018;
+  --color-primary: #1B7AC7;
+  --color-primary-fg: #f4f9fd;
+  --color-ok: #6fbf8a;
+  --color-warn: #d4a85c;
+  --color-danger: #e07a72;
+  --color-shear: #5aa3d9;
+  --color-moment: #e0a86a;
+  --color-defl: #7dba8f;
+  --color-beam: #d7e3ef;
+  --lumax-blue: #1B7AC7;
+  --lumax-blue-soft: #48a0e0;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-border: 0 0 0 1px rgba(127, 180, 217, 0.14);
+  --shadow-border-hover: 0 0 0 1px rgba(72, 160, 224, 0.35);
+  --shadow-glow: 0 0 0 1px rgba(27, 122, 199, 0.25), 0 8px 28px rgba(7, 40, 70, 0.45);
+  --text-2xs: 0.6875rem;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html, body { min-height: 100%; margin: 0; background: var(--color-bg); color: var(--color-fg); }
+body {
+  font-family: var(--font-sans); line-height: 1.5;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(27, 122, 199, 0.22), transparent 55%),
+    radial-gradient(900px 500px at 88% 0%, rgba(72, 160, 224, 0.10), transparent 50%),
+    linear-gradient(180deg, #0a1520 0%, var(--color-bg) 42%, #060a10 100%);
+  background-attachment: fixed;
+}
+button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+button { font-family: inherit; }
+input, select { font-family: inherit; color: inherit; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { text-wrap: pretty; margin: 0; }
+table { border-collapse: collapse; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.schematic-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-fg) 5%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.app { min-height: 100dvh; }
+.wrap { max-width: 88rem; margin: 0 auto; padding: 0 1rem; }
+@media (min-width: 640px) { .wrap { padding: 0 1.5rem; } }
+
+.header { border-bottom: 1px solid var(--color-border); }
+.header-inner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 0.75rem; padding: 0.75rem 0;
+}
+.brand { display: flex; align-items: center; gap: 0.75rem; }
+.logo {
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs); background: var(--color-elevated); box-shadow: var(--shadow-border);
+}
+.logo svg { width: 20px; height: 20px; }
+.brand-title { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.02em; }
+.brand-sub { font-size: var(--text-2xs); color: var(--color-muted); }
+.header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  height: 36px; padding: 0 0.75rem; border: 0; border-radius: var(--radius-xs);
+  font-size: 0.75rem; font-weight: 500; background: transparent; color: var(--color-fg);
+  box-shadow: var(--shadow-border); transition: box-shadow 150ms var(--ease), background 150ms var(--ease), color 150ms var(--ease), transform 150ms var(--ease);
+}
+.btn:hover { box-shadow: var(--shadow-border-hover); background: var(--color-elevated); }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.4; pointer-events: none; }
+.btn.primary { background: var(--color-primary); color: var(--color-primary-fg); box-shadow: none; }
+.btn.primary:hover { background: var(--color-accent); }
+.btn.ghost { box-shadow: none; color: var(--color-muted); }
+.btn.ghost:hover { color: var(--color-fg); }
+.btn.icon { padding: 0 0.5rem; }
+.btn svg { width: 14px; height: 14px; }
+
+.field, .sel {
+  height: 40px; width: 100%; border: 0; border-radius: var(--radius-xs);
+  background: var(--color-inset); padding: 0 0.625rem; font-size: 0.875rem; color: var(--color-fg);
+  box-shadow: var(--shadow-border); transition: box-shadow 150ms var(--ease);
+  font-variant-numeric: tabular-nums;
+}
+.sel { padding-right: 2rem; }
+.field:hover, .sel:hover { box-shadow: var(--shadow-border-hover); }
+.field:focus, .sel:focus { outline: none; box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-accent) 55%, transparent); }
+.field:disabled, .sel:disabled { opacity: 0.4; }
+.field.sm, .sel.sm { height: 36px; font-size: 0.8125rem; }
+.w-36 { width: 9rem; }
+.w-preset { width: 9.5rem; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  border-radius: 999px; padding: 0.25rem 0.625rem;
+  font-size: var(--text-2xs); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.badge.muted { color: var(--color-muted); background: var(--color-elevated); }
+.badge.ok { color: var(--color-ok); background: color-mix(in oklab, var(--color-ok) 15%, transparent); }
+.badge.warn { color: var(--color-warn); background: color-mix(in oklab, var(--color-warn) 15%, transparent); }
+.badge.danger { color: var(--color-danger); background: color-mix(in oklab, var(--color-danger) 15%, transparent); }
+
+.main { padding: 1.25rem 0 2.5rem; }
+.kicker { font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-subtle); }
+.page-title { margin-top: 0.25rem; font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em; }
+@media (min-width: 640px) { .page-title { font-size: 1.5rem; } }
+.meta { margin-top: 0.25rem; font-size: 0.75rem; color: var(--color-muted); }
+
+.schematic { overflow: hidden; border-radius: var(--radius-lg); background: var(--color-inset); margin-top: 1rem; }
+.schematic svg { width: 100%; height: 12.75rem; display: block; }
+.load-legend {
+  display: flex; flex-wrap: wrap; gap: 0.25rem 1rem;
+  border-top: 1px solid var(--color-border); padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-muted);
+}
+
+.tabs-wrap { margin-top: 1.25rem; overflow-x: auto; }
+.tabs {
+  display: flex; min-width: max-content; gap: 0.25rem;
+  border-radius: var(--radius-md); background: var(--color-surface); padding: 0.25rem;
+  box-shadow: var(--shadow-border);
+}
+.tab {
+  min-height: 44px; border: 0; border-radius: var(--radius-xs); padding: 0 1rem;
+  font-size: 0.875rem; font-weight: 500; background: transparent; color: var(--color-muted);
+  transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.tab:hover { color: var(--color-fg); }
+.tab.active { background: var(--color-elevated); color: var(--color-fg); }
+
+.panel { margin-top: 1.25rem; }
+.card {
+  border-radius: var(--radius-lg); background: var(--color-surface); padding: 1rem;
+  box-shadow: var(--shadow-border);
+}
+.card h2 { font-size: 0.875rem; font-weight: 500; }
+.hint { margin-top: 0.25rem; font-size: 0.75rem; color: var(--color-muted); }
+.grid-2 { display: grid; gap: 1rem; }
+@media (min-width: 1024px) {
+  .geo-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 20rem) 1fr; }
+  .combo-grid { display: grid; gap: 1rem; grid-template-columns: 1fr minmax(0, 16rem); }
+  .qa-grid { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+  .split-2 { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+}
+.fields { margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.label { display: block; }
+.label span {
+  display: block; margin-bottom: 0.25rem; font-size: var(--text-2xs); font-weight: 500;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-subtle);
+}
+.check {
+  display: flex; min-height: 44px; align-items: center; gap: 0.625rem; font-size: 0.875rem; margin-top: 1rem;
+}
+.check input, .mini-check input { width: 16px; height: 16px; accent-color: var(--color-accent); }
+.mini-check { display: flex; min-height: 44px; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color-muted); }
+.mono-note { margin-top: 0.75rem; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-subtle); font-variant-numeric: tabular-nums; }
+.row-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.scroll { margin-top: 0.75rem; overflow-x: auto; }
+.scroll-y { margin-top: 0.75rem; max-height: 20rem; overflow: auto; }
+.data { width: 100%; font-size: 0.75rem; }
+.data th {
+  text-align: left; font-weight: 500; color: var(--color-subtle); padding: 0 0.5rem 0.5rem 0;
+}
+.data td { padding: 0.4rem 0.5rem 0.4rem 0; border-top: 1px solid var(--color-border); vertical-align: middle; }
+.data.tight td { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.data .mono { font-family: var(--font-mono); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.data .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.data tr.clickable { cursor: pointer; }
+.data tr.clickable:hover, .data tr.on { background: var(--color-elevated); }
+.data thead.sticky th { position: sticky; top: 0; background: var(--color-surface); z-index: 1; }
+.min-56 { min-width: 56rem; }
+.min-48 { min-width: 48rem; }
+.w-24 { width: 6rem; }
+.w-28 { width: 7rem; }
+.w-32 { width: 8rem; }
+.w-40 { width: 10rem; }
+.muted { color: var(--color-muted); }
+.subtle { color: var(--color-subtle); }
+.combo-row { cursor: pointer; }
+.combo-row.selected { background: color-mix(in oklab, var(--color-elevated) 60%, transparent); }
+.combo-row:hover { background: color-mix(in oklab, var(--color-elevated) 30%, transparent); }
+.unit { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-subtle); }
+.mag { display: flex; align-items: center; gap: 0.375rem; }
+.legend-list { margin: 0.75rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.75rem; }
+.legend-list .k { font-family: var(--font-mono); font-size: 0.75rem; }
+.opacity-50 { opacity: 0.5; }
+.space-y { display: grid; gap: 1rem; }
+
+.extrema { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .extrema { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1024px) { .extrema { grid-template-columns: repeat(5, 1fr); } }
+.ext-card {
+  text-align: left; border: 0; border-radius: var(--radius-lg); background: var(--color-surface);
+  padding: 0.75rem 1rem; box-shadow: var(--shadow-border); color: inherit;
+  transition: box-shadow 150ms var(--ease);
+}
+.ext-card:hover, .ext-card.on { box-shadow: var(--shadow-border-hover); }
+.ext-card .k { font-size: var(--text-2xs); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-subtle); }
+.ext-card .v { margin-top: 0.25rem; font-family: var(--font-mono); font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+.ext-card .v span { margin-left: 0.25rem; font-size: 0.75rem; color: var(--color-muted); }
+.ext-card .x { margin-top: 0.25rem; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-muted); }
+
+.pinbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem;
+  border-radius: var(--radius-lg); background: var(--color-elevated); padding: 0.5rem 0.75rem; font-size: 0.75rem;
+}
+.pinbar .vals { font-family: var(--font-mono); color: var(--color-muted); }
+.pinbar .vals span { margin-left: 0.75rem; }
+
+.diagram { overflow: hidden; border-radius: var(--radius-lg); background: var(--color-inset); }
+.diagram-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0.625rem 0.75rem 0; }
+.diagram-head h3 { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.02em; }
+.diagram-head .unit { margin-left: 0.5rem; }
+.diagram-head .read { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.diagram svg { width: 100%; height: 10.5rem; display: block; cursor: crosshair; }
+
+.dl { margin-top: 1rem; display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; font-size: 0.75rem; }
+.dl dt { color: var(--color-muted); }
+.dl dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.status-rows { margin-top: 1rem; display: grid; gap: 0.625rem; font-size: 0.875rem; }
+.status-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.status-row dt { color: var(--color-muted); }
+.warn-list { margin: 1rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; font-size: 0.75rem; color: var(--color-warn); }
+.sign-list, .scope-list { margin: 0.75rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; font-size: 0.75rem; color: var(--color-muted); }
+.span-2 { grid-column: 1 / -1; }
+.foot { margin-top: 2.5rem; border-top: 1px solid var(--color-border); padding-top: 1.25rem; font-size: 0.75rem; color: var(--color-subtle); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+.hide-sm { display: none; }
+.show-sm { display: inline-flex; }
+@media (min-width: 640px) {
+  .hide-sm { display: inline-flex; }
+  .show-sm { display: none; }
+}
+
+
+.header {
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-surface) 78%, transparent);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 40;
+}
+.logo {
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #1a3a58 0%, #0f2438 100%);
+  color: var(--lumax-blue-soft);
+  box-shadow: var(--shadow-glow);
+}
+.brand-title {
+  font-size: 1rem; font-weight: 600; letter-spacing: -0.03em;
+  background: linear-gradient(90deg, #f2f7fc 0%, #9fd0f0 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.btn.primary {
+  background: linear-gradient(180deg, #2a8fd6 0%, var(--color-primary) 100%);
+  color: var(--color-primary-fg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 6px 16px rgba(27, 122, 199, 0.28);
+}
+.btn.primary:hover {
+  background: linear-gradient(180deg, #48a0e0 0%, #1f84d0 100%);
+}
+.tab.active {
+  background: color-mix(in oklab, var(--lumax-blue) 22%, var(--color-elevated));
+  color: var(--color-fg);
+  box-shadow: inset 0 -2px 0 var(--lumax-blue-soft);
+}
+.card, .schematic, .diagram, .ext-card {
+  box-shadow: var(--shadow-border), 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.schematic, .diagram {
+  background:
+    linear-gradient(180deg, rgba(27, 122, 199, 0.06), transparent 40%),
+    var(--color-inset);
+}
+.kicker { color: var(--lumax-blue-soft); letter-spacing: 0.18em; }
+.foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem;
+}
+.foot-brand {
+  font-family: var(--font-mono); font-size: var(--text-2xs);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--lumax-blue-soft);
+}
+.badge.ok { color: #9fd9b0; }
+.field:focus, .sel:focus {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--lumax-blue-soft) 70%, transparent),
+              0 0 0 4px color-mix(in oklab, var(--lumax-blue) 18%, transparent);
+}
+
+.file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  </style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <script>
+"use strict";
+/** CBA FEA engine — Continuous Beam Analysis · Lumax Energy · plain JS, no deps. */
+
+const LOAD_CASES = ["G", "Q1", "Q2", "W+", "W-", "O"];
+const SUPPORT_TYPES = ["Free", "Pinned", "Roller", "Fixed"];
+const LOAD_TYPES = ["Point", "Moment", "UDL"];
+const MATERIALS = ["Steel", "Aluminium", "Custom"];
+
+const SECTION_LIBRARY = [
+  { name: "Custom", mass: null, h: null, tw: null, tf: null, I: 0, Z: 0, A: 0, Av: 0 },
+  { name: "IPE 100", mass: 8.1, h: 100, tw: 4.1, tf: 5.7, I: 1710000, Z: 34200, A: 1030, Av: 410 },
+  { name: "IPE 120", mass: 10.4, h: 120, tw: 4.4, tf: 6.3, I: 3180000, Z: 53000, A: 1320, Av: 528 },
+  { name: "IPE 140", mass: 12.9, h: 140, tw: 4.7, tf: 6.9, I: 5410000, Z: 77300, A: 1640, Av: 658 },
+  { name: "IPE 160", mass: 15.8, h: 160, tw: 5.0, tf: 7.4, I: 8690000, Z: 108700, A: 2010, Av: 800 },
+  { name: "IPE 180", mass: 18.8, h: 180, tw: 5.3, tf: 8.0, I: 13170000, Z: 146300, A: 2390, Av: 954 },
+  { name: "IPE 200", mass: 22.4, h: 200, tw: 5.6, tf: 8.5, I: 19430000, Z: 194300, A: 2850, Av: 1120 },
+  { name: "IPE 220", mass: 26.2, h: 220, tw: 5.9, tf: 9.2, I: 27720000, Z: 252000, A: 3340, Av: 1298 },
+  { name: "IPE 240", mass: 30.7, h: 240, tw: 6.2, tf: 9.8, I: 38920000, Z: 324300, A: 3910, Av: 1488 },
+  { name: "IPE 270", mass: 36.1, h: 270, tw: 6.6, tf: 10.2, I: 57900000, Z: 428900, A: 4590, Av: 1782 },
+  { name: "IPE 300", mass: 42.2, h: 300, tw: 7.1, tf: 10.7, I: 83560000, Z: 557100, A: 5380, Av: 2130 },
+  { name: "IPE 330", mass: 49.1, h: 330, tw: 7.5, tf: 11.5, I: 117700000, Z: 713100, A: 6260, Av: 2475 },
+  { name: "IPE 360", mass: 57.1, h: 360, tw: 8.0, tf: 12.7, I: 162700000, Z: 903600, A: 7270, Av: 2880 },
+  { name: "IPE 400", mass: 66.3, h: 400, tw: 8.6, tf: 13.5, I: 231300000, Z: 1156000, A: 8450, Av: 3440 },
+  { name: "IPE 450", mass: 77.6, h: 450, tw: 9.4, tf: 14.6, I: 337400000, Z: 1500000, A: 9880, Av: 4230 },
+  { name: "IPE 500", mass: 90.7, h: 500, tw: 10.2, tf: 16.0, I: 482000000, Z: 1928000, A: 11550, Av: 5100 },
+];
+
+const CASE_LEGEND = {
+  G: "Permanent actions and automatic self-weight",
+  Q1: "Primary variable action",
+  Q2: "Secondary variable action",
+  "W+": "Wind / action direction + (down)",
+  "W-": "Wind / action direction − (up)",
+  O: "Other linear action",
+};
+
+function materialE(material, customE) {
+  if (material === "Steel") return 200000;
+  if (material === "Aluminium") return 69000;
+  return customE;
+}
+function materialDensity(material, customDensity) {
+  if (material === "Steel") return 7850;
+  if (material === "Aluminium") return 2700;
+  return customDensity;
+}
+function resolveSection(name, custom) {
+  if (name === "Custom") return { name: "Custom", mass: null, h: null, tw: null, tf: null, ...custom };
+  const found = SECTION_LIBRARY.find((s) => s.name === name);
+  if (!found) return { name: "Custom", mass: null, h: null, tw: null, tf: null, ...custom };
+  return found;
+}
+
+function formatNum(v, digits = 3) {
+  if (!Number.isFinite(v)) return "—";
+  if (Math.abs(v) < 1e-9) return "0";
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e8 || a < 1e-4)) return v.toExponential(2);
+  const t = v.toFixed(digits);
+  return t.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+}
+function inputValue(v, maxDec = 6) {
+  if (!Number.isFinite(v)) return "";
+  return String(parseFloat(v.toFixed(maxDec)));
+}
+
+function solveLinearSystem(K, f) {
+  const n = f.length;
+  if (n === 0) return [];
+  const a = Array.from({ length: n }, (_, i) => {
+    const row = K[i].slice();
+    row.push(f[i]);
+    return row;
+  });
+  for (let k = 0; k < n; k++) {
+    let piv = k;
+    let max = Math.abs(a[k][k]);
+    for (let i = k + 1; i < n; i++) {
+      const v = Math.abs(a[i][k]);
+      if (v > max) {
+        max = v;
+        piv = i;
+      }
+    }
+    if (max < 1e-18) throw new Error("singular");
+    if (piv !== k) {
+      const tmp = a[k];
+      a[k] = a[piv];
+      a[piv] = tmp;
+    }
+    const diag = a[k][k];
+    for (let i = k + 1; i < n; i++) {
+      const factor = a[i][k] / diag;
+      if (factor === 0) continue;
+      for (let j = k; j <= n; j++) a[i][j] -= factor * a[k][j];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = a[i][n];
+    for (let j = i + 1; j < n; j++) s -= a[i][j] * x[j];
+    const diag = a[i][i];
+    if (Math.abs(diag) < 1e-18) throw new Error("singular");
+    x[i] = s / diag;
+  }
+  return x;
+}
+
+function id(prefix, n) {
+  return `${prefix}${String(n).padStart(2, "0")}`;
+}
+
+const DEFAULT_COMBINATIONS = [
+  { id: "c1", name: "G+Q1", class: "Service", factors: { G: 1.2, Q1: 1.6, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Unfactored service combination" },
+  { id: "c2", name: "G+Q2", class: "Service", factors: { G: 1.2, Q1: 0, Q2: 1.6, "W+": 0, "W-": 0, O: 0 }, notes: "Unfactored service combination" },
+  { id: "c3", name: "G+Q1+Q2", class: "Service", factors: { G: 1.2, Q1: 1.6, Q2: 1.5, "W+": 0, "W-": 0, O: 0 }, notes: "Edit accompanying-action factors as required" },
+  { id: "c4", name: "G+W+", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 1.6, "W-": 0, O: 0 }, notes: "Positive wind case" },
+  { id: "c5", name: "G+W-", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 1.6, O: 0 }, notes: "Negative wind case" },
+  { id: "c6", name: "G+O", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 1 }, notes: "Other action" },
+  { id: "c7", name: "G only", class: "Single case", factors: { G: 1.35, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Permanent / self-weight only" },
+  { id: "c8", name: "Q1 only", class: "Single case", factors: { G: 0, Q1: 1, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q1 only" },
+  { id: "c9", name: "Q2 only", class: "Single case", factors: { G: 0, Q1: 0, Q2: 1, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q2 only" },
+  { id: "c10", name: "USER-01", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
+  { id: "c11", name: "USER-02", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
+  { id: "c12", name: "USER-03", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
+];
+
+function emptyLoads() {
+  return Array.from({ length: 16 }, (_, i) => ({
+    id: id("L", i + 1),
+    active: false,
+    case: "Q1",
+    type: "Point",
+    x1: 0,
+    x2: 0,
+    magnitude: 0,
+    description: "",
+  }));
+}
+
+function blankLoad(index) {
+  return { id: id("L", index), active: false, case: "Q1", type: "Point", x1: 0, x2: 0, magnitude: 0, description: "" };
+}
+
+function resizeElements(model, n) {
+  const clamped = Math.max(1, Math.min(24, Math.round(n)));
+  const elements = model.elements.slice(0, clamped);
+  while (elements.length < clamped) {
+    const i = elements.length;
+    elements.push({ id: id("E", i + 1), description: `Element ${i + 1}`, length: 4, section: model.defaultSection });
+  }
+  const supports = model.supports.slice(0, clamped + 1);
+  while (supports.length < clamped + 1) supports.push("Pinned");
+  return { ...model, nElements: clamped, elements, supports };
+}
+
+function simpleThreeSpan() {
+  const lengths = [5, 6, 5];
+  const elements = lengths.map((length, i) => ({
+    id: id("E", i + 1),
+    description: `Span ${i + 1}`,
+    length,
+    section: "IPE 200",
+  }));
+  return {
+    nElements: 3,
+    material: "Steel",
+    customE: 200000,
+    customDensity: 7850,
+    defaultSection: "IPE 200",
+    customI: 19430000,
+    customZ: 194300,
+    customA: 2850,
+    customAv: 1120,
+    includeSelfWeight: true,
+    stationsPerElement: 26,
+    deflectionLimitN: 250,
+    elements,
+    supports: ["Pinned", "Pinned", "Pinned", "Pinned"],
+    loads: [
+      { id: "L01", active: true, case: "G", type: "UDL", x1: 0, x2: 16, magnitude: 4.5, description: "Permanent cladding and services" },
+      { id: "L02", active: true, case: "Q1", type: "UDL", x1: 0, x2: 16, magnitude: 3.0, description: "Imposed floor load" },
+      ...emptyLoads().slice(2),
+    ],
+    combinations: DEFAULT_COMBINATIONS.map((c) => ({ ...c, factors: { ...c.factors } })),
+    selectedComboId: "c1",
+  };
+}
+
+function excelExample() {
+  const specs = [
+    { description: "Left overhang", length: 1.102 },
+    { description: "Span 1", length: 3.5 },
+    { description: "Span 2", length: 4.1 },
+    { description: "Span 3", length: 4.1 },
+    { description: "Span 4", length: 4.1 },
+    { description: "Span 5", length: 4.1 },
+    { description: "Span 6", length: 4.1 },
+    { description: "Span 7", length: 4.1 },
+    { description: "Span 8", length: 4.1 },
+    { description: "Span 9", length: 4.1 },
+    { description: "Span 10", length: 3.5 },
+    { description: "Right overhang", length: 1.102 },
+  ];
+  const elements = specs.map((s, i) => ({
+    id: id("E", i + 1),
+    description: s.description,
+    length: s.length,
+    section: "Custom",
+  }));
+  const supports = ["Free", ...Array(11).fill("Pinned"), "Free"];
+  const loads = emptyLoads();
+  loads[0] = { id: "L01", active: true, case: "W-", type: "UDL", x1: 0, x2: 42.004, magnitude: 0.54 * (2.389 / 2), description: "Wind uplift UDL (migrated from v2)" };
+  loads[1] = { id: "L02", active: true, case: "W+", type: "UDL", x1: 0, x2: 42.004, magnitude: 0.36 * (2.389 / 2), description: "Wind downward UDL" };
+  loads[2] = { id: "L03", active: true, case: "G", type: "UDL", x1: 0, x2: 42.004, magnitude: 0.13, description: "Permanent superimposed UDL" };
+  return {
+    nElements: 12,
+    material: "Steel",
+    customE: 200000,
+    customDensity: 7850,
+    defaultSection: "Custom",
+    customI: 966080,
+    customZ: 14863,
+    customA: 370.24,
+    customAv: 370.24,
+    includeSelfWeight: true,
+    stationsPerElement: 26,
+    deflectionLimitN: 200,
+    elements,
+    supports,
+    loads,
+    combinations: DEFAULT_COMBINATIONS.map((c) =>
+      c.id === "c8" || c.id === "c9" ? { ...c, factors: { ...c.factors, Q1: 0, Q2: 0 } } : { ...c, factors: { ...c.factors } },
+    ),
+    selectedComboId: "c4",
+  };
+}
+
+const G_ACCEL = 9.80665;
+const EPS = 1e-9;
+const zeros4 = () => [0, 0, 0, 0];
+const emptyCaseMap = (v = 0) => ({ G: v, Q1: v, Q2: v, "W+": v, "W-": v, O: v });
+
+function elementStiffness(L, E, I) {
+  const a = (12 * E * I) / L ** 3;
+  const b = (6 * E * I) / L ** 2;
+  const c = (4 * E * I) / L;
+  const d = (2 * E * I) / L;
+  return [
+    [a, b, -a, b],
+    [b, c, -b, d],
+    [-a, -b, a, -b],
+    [b, d, -b, c],
+  ];
+}
+function eqPoint(Pdown, xi, L) {
+  const P = -Pdown;
+  const N1 = 1 - 3 * xi ** 2 + 2 * xi ** 3;
+  const N2 = L * (xi - 2 * xi ** 2 + xi ** 3);
+  const N3 = 3 * xi ** 2 - 2 * xi ** 3;
+  const N4 = L * (xi ** 3 - xi ** 2);
+  return [P * N1, P * N2, P * N3, P * N4];
+}
+function eqMoment(Mccw, xi, L) {
+  const M = Mccw;
+  return [
+    (M * (-6 * xi + 6 * xi ** 2)) / L,
+    M * (1 - 4 * xi + 3 * xi ** 2),
+    (M * (6 * xi - 6 * xi ** 2)) / L,
+    M * (-2 * xi + 3 * xi ** 2),
+  ];
+}
+function eqUdl(wDown, xi1, xi2, L) {
+  const p1 = (s) => s - s ** 3 + s ** 4 / 2;
+  const p2 = (s) => s ** 2 / 2 - (2 * s ** 3) / 3 + s ** 4 / 4;
+  const p3 = (s) => s ** 3 - s ** 4 / 2;
+  const p4 = (s) => -(s ** 3) / 3 + s ** 4 / 4;
+  return [
+    -wDown * L * (p1(xi2) - p1(xi1)),
+    -wDown * L ** 2 * (p2(xi2) - p2(xi1)),
+    -wDown * L * (p3(xi2) - p3(xi1)),
+    -wDown * L ** 2 * (p4(xi2) - p4(xi1)),
+  ];
+}
+function add4(a, b) {
+  a[0] += b[0];
+  a[1] += b[1];
+  a[2] += b[2];
+  a[3] += b[3];
+}
+function loadApplies(load, x0, x1, isFirst) {
+  if (!load.active) return false;
+  if (!(Number.isFinite(load.magnitude) && load.magnitude !== 0)) return false;
+  if (load.type === "Point" || load.type === "Moment") {
+    const x = load.x1;
+    const eps0 = isFirst ? 1e-9 : 0;
+    return x > x0 - eps0 && x <= x1 + 1e-9;
+  }
+  return load.x2 > x0 && load.x1 < x1 && load.x2 > load.x1;
+}
+function validateLoad(load, totalLength) {
+  if (!load.active) return null;
+  if (!Number.isFinite(load.magnitude)) return `${load.id}: magnitude is not a number`;
+  if (load.type === "UDL") {
+    if (!Number.isFinite(load.x1) || !Number.isFinite(load.x2)) return `${load.id}: coordinates missing`;
+    if (load.x2 <= load.x1) return `${load.id}: UDL x2 must be greater than x1`;
+    if (load.x2 <= 0 || load.x1 >= totalLength) return `${load.id}: UDL does not overlap the beam`;
+  } else {
+    if (!Number.isFinite(load.x1)) return `${load.id}: x1 missing`;
+    if (load.x1 < -1e-9 || load.x1 > totalLength + 1e-9) return `${load.id}: x1 is outside the beam`;
+  }
+  return null;
+}
+function combine(map, factors) {
+  let s = 0;
+  for (const c of LOAD_CASES) s += map[c] * (factors[c] ?? 0);
+  return s;
+}
+function argExtrema(values) {
+  let imax = 0;
+  let imin = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] > values[imax]) imax = i;
+    if (values[i] < values[imin]) imin = i;
+  }
+  return { imax, imin };
+}
+function macaulay(el, c, x, wSelf, includeSW) {
+  let dV = 0, dM = 0, dS = 0, dD = 0;
+  for (const m of el.mapped) {
+    if (m.load.case !== c) continue;
+    const r1 = Math.max(x - m.a, 0);
+    const r2 = Math.max(x - m.b, 0);
+    if (m.load.type === "Point") {
+      const P = m.load.magnitude * 1000;
+      if (x > m.a) dV += -P;
+      dM += -P * r1;
+      dS += (-P * r1 * r1) / 2;
+      dD += (-P * r1 * r1 * r1) / 6;
+    } else if (m.load.type === "Moment") {
+      const M = m.load.magnitude * 1000;
+      if (x > m.a) dM += -M;
+      dS += -M * r1;
+      dD += (-M * r1 * r1) / 2;
+    } else {
+      const w = m.load.magnitude * 1000;
+      dV += -w * (r1 - r2);
+      dM += (-w * (r1 * r1 - r2 * r2)) / 2;
+      dS += (-w * (r1 ** 3 - r2 ** 3)) / 6;
+      dD += (-w * (r1 ** 4 - r2 ** 4)) / 24;
+    }
+  }
+  if (includeSW && c === "G") {
+    dV += -wSelf * x;
+    dM += (-wSelf * x * x) / 2;
+    dS += (-wSelf * x ** 3) / 6;
+    dD += (-wSelf * x ** 4) / 24;
+  }
+  return { dV, dM, dS, dD };
+}
+function uniqueSorted(xs) {
+  const t = xs.slice().sort((a, b) => a - b);
+  const out = [];
+  for (const v of t) {
+    if (!out.length || Math.abs(v - out[out.length - 1]) > 1e-12) out.push(v);
+  }
+  return out;
+}
+
+function analyze(model) {
+  const nEl = Math.max(1, Math.min(24, model.nElements));
+  const elements = model.elements.slice(0, nEl);
+  const nNodes = nEl + 1;
+  const supports = Array.from({ length: nNodes }, (_, i) => model.supports[i] ?? "Free");
+  const E_mpa = materialE(model.material, model.customE);
+  const density = materialDensity(model.material, model.customDensity);
+  const E = E_mpa * 1e6;
+  const custom = { I: model.customI, Z: model.customZ, A: model.customA, Av: model.customAv };
+  const nodeX = [0];
+  const sectionAt = [];
+  for (let i = 0; i < nEl; i++) {
+    const L = Math.max(elements[i]?.length ?? 0, 0);
+    nodeX.push(nodeX[i] + L);
+    const sec = resolveSection(elements[i]?.section || model.defaultSection, custom);
+    sectionAt.push({ I: sec.I, Z: sec.Z, A: sec.A, Av: sec.Av, name: sec.name });
+  }
+  const totalLength = nodeX[nEl];
+  const invalidLoads = [];
+  for (const ld of model.loads) {
+    const msg = validateLoad(ld, totalLength);
+    if (msg) invalidLoads.push(msg);
+  }
+  const nVert = supports.filter((s) => s === "Pinned" || s === "Roller" || s === "Fixed").length;
+  const nFixed = supports.filter((s) => s === "Fixed").length;
+  const supportStable = nVert >= 2 || nFixed >= 1;
+  const warnings = [];
+  if (totalLength <= 0) warnings.push("Total beam length is zero.");
+  for (let i = 0; i < nEl; i++) {
+    if ((elements[i]?.length ?? 0) <= 0) warnings.push(`Element ${i + 1} has non-positive length.`);
+    if (sectionAt[i].I <= 0) warnings.push(`Element ${i + 1} has I ≤ 0.`);
+  }
+  const emptySelected = {
+    id: model.selectedComboId,
+    name: model.combinations.find((c) => c.id === model.selectedComboId)?.name ?? "",
+    factors: emptyCaseMap(0),
+    V: [], M: [], v: [], slopeDeg: [], tau: [], sigmaTop: [], sigmaBot: [], extrema: [],
+  };
+  const fail = (status) => ({
+    ok: false, status, solverReady: false, supportStable, invalidLoads, warnings, totalLength,
+    E: E_mpa, density, nElements: nEl, nNodes, nodeX, stations: [], reactions: [],
+    selected: emptySelected, envelope: [],
+    equilibrium: LOAD_CASES.map((c) => ({ case: c, applied: 0, reactions: 0, residual: 0, ok: true })),
+    continuity: [],
+    deflectionCheck: { longestSpan: 0, limitN: model.deflectionLimitN, allowableMm: 0, maxAbsMm: 0, utilisation: 0, status: "N/A" },
+    sectionAt,
+  });
+  if (!supportStable) return fail("UNSTABLE SUPPORTS");
+  if (totalLength <= 0 || warnings.some((w) => w.includes("I ≤ 0") || w.includes("non-positive"))) return fail("INVALID GEOMETRY");
+
+  const nDof = nNodes * 2;
+  const K = Array.from({ length: nDof }, () => new Array(nDof).fill(0));
+  const F = { G: new Array(nDof).fill(0), Q1: new Array(nDof).fill(0), Q2: new Array(nDof).fill(0), "W+": new Array(nDof).fill(0), "W-": new Array(nDof).fill(0), O: new Array(nDof).fill(0) };
+  const elems = [];
+  for (let e = 0; e < nEl; e++) {
+    const L = elements[e].length;
+    const x0 = nodeX[e];
+    const x1 = nodeX[e + 1];
+    const I = sectionAt[e].I * 1e-12;
+    const Z = sectionAt[e].Z * 1e-9;
+    const A = sectionAt[e].A * 1e-6;
+    const Av = sectionAt[e].Av * 1e-6;
+    const ke = elementStiffness(L, E, I);
+    const dofs = [2 * e, 2 * e + 1, 2 * e + 2, 2 * e + 3];
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) K[dofs[a]][dofs[b]] += ke[a][b];
+    const f = { G: zeros4(), Q1: zeros4(), Q2: zeros4(), "W+": zeros4(), "W-": zeros4(), O: zeros4() };
+    const mapped = [];
+    for (const ld of model.loads) {
+      if (!loadApplies(ld, x0, x1, e === 0)) continue;
+      let fe, a = 0, b = 0;
+      if (ld.type === "UDL") {
+        a = Math.max(0, ld.x1 - x0);
+        b = Math.min(L, ld.x2 - x0);
+        fe = eqUdl(ld.magnitude * 1000, a / L, b / L, L);
+      } else if (ld.type === "Point") {
+        a = ld.x1 - x0;
+        b = a;
+        fe = eqPoint(ld.magnitude * 1000, a / L, L);
+      } else {
+        a = ld.x1 - x0;
+        b = a;
+        fe = eqMoment(ld.magnitude * 1000, a / L, L);
+      }
+      add4(f[ld.case], fe);
+      mapped.push({ load: ld, a, b });
+    }
+    const wSelf = density * (sectionAt[e].A * 1e-6) * G_ACCEL;
+    if (model.includeSelfWeight) add4(f.G, eqUdl(wSelf, 0, 1, L));
+    for (const c of LOAD_CASES) for (let a = 0; a < 4; a++) F[c][dofs[a]] += f[c][a];
+    elems.push({
+      L, x0, x1, E, I, Z, A, Av, name: sectionAt[e].name, ke, f,
+      q: { G: zeros4(), Q1: zeros4(), Q2: zeros4(), "W+": zeros4(), "W-": zeros4(), O: zeros4() },
+      dofs, mapped,
+    });
+  }
+  const constrained = [];
+  for (const s of supports) {
+    constrained.push(s === "Pinned" || s === "Roller" || s === "Fixed");
+    constrained.push(s === "Fixed");
+  }
+  const free = [];
+  for (let i = 0; i < nDof; i++) if (!constrained[i]) free.push(i);
+  let solverReady = true;
+  const U = { G: new Array(nDof).fill(0), Q1: new Array(nDof).fill(0), Q2: new Array(nDof).fill(0), "W+": new Array(nDof).fill(0), "W-": new Array(nDof).fill(0), O: new Array(nDof).fill(0) };
+  try {
+    if (free.length === 0) throw new Error("singular");
+    const Kff = free.map((i) => free.map((j) => K[i][j]));
+    for (const c of LOAD_CASES) {
+      const ff = free.map((i) => F[c][i]);
+      const uf = solveLinearSystem(Kff, ff);
+      for (let k = 0; k < free.length; k++) U[c][free[k]] = uf[k];
+    }
+  } catch {
+    solverReady = false;
+  }
+  if (!solverReady) return fail("SOLVER ERROR");
+  const R = { G: new Array(nDof).fill(0), Q1: new Array(nDof).fill(0), Q2: new Array(nDof).fill(0), "W+": new Array(nDof).fill(0), "W-": new Array(nDof).fill(0), O: new Array(nDof).fill(0) };
+  for (const c of LOAD_CASES) {
+    for (let i = 0; i < nDof; i++) {
+      let s = 0;
+      for (let j = 0; j < nDof; j++) s += K[i][j] * U[c][j];
+      R[c][i] = s - F[c][i];
+    }
+  }
+  for (const el of elems) {
+    for (const c of LOAD_CASES) {
+      const ue = el.dofs.map((d) => U[c][d]);
+      const q = zeros4();
+      for (let a = 0; a < 4; a++) {
+        let s = 0;
+        for (let b = 0; b < 4; b++) s += el.ke[a][b] * ue[b];
+        q[a] = s - el.f[c][a];
+      }
+      el.q[c] = q;
+    }
+  }
+  const nStat = model.stationsPerElement;
+  const stations = [];
+  for (let e = 0; e < nEl; e++) {
+    const el = elems[e];
+    const xiSet = Array.from({ length: nStat }, (_, i) => i / (nStat - 1));
+    for (const m of el.mapped) {
+      if (m.load.type === "UDL") {
+        if (m.a > EPS && m.a < el.L - EPS) xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
+        if (m.b > EPS && m.b < el.L - EPS) xiSet.push(m.b / el.L - 1e-12, m.b / el.L + 1e-12);
+      } else if (m.a > EPS && m.a < el.L - EPS) {
+        xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
+      }
+    }
+    const xis = uniqueSorted(xiSet.map((x) => Math.min(1, Math.max(0, x))));
+    const wSelf = density * el.A * G_ACCEL;
+    xis.forEach((xi, idx) => {
+      const xloc = xi * el.L;
+      const rec = {
+        elementIndex: e, station: idx, xi, x: el.x0 + xloc,
+        V: emptyCaseMap(), M: emptyCaseMap(), v: emptyCaseMap(), theta: emptyCaseMap(),
+        side: xi <= EPS ? "left" : xi >= 1 - EPS ? "right" : "interior",
+      };
+      for (const c of LOAD_CASES) {
+        const q = el.q[c];
+        const { dV, dM, dS, dD } = macaulay(el, c, xloc, wSelf, model.includeSelfWeight);
+        const V = q[0] + dV;
+        const M = -q[1] + q[0] * xloc + dM;
+        const th0 = U[c][el.dofs[1]];
+        const v0 = U[c][el.dofs[0]];
+        const EI = el.E * el.I;
+        const th = th0 + (-q[1] * xloc + (q[0] * xloc * xloc) / 2 + dS) / EI;
+        const v = v0 + th0 * xloc + ((-q[1] * xloc * xloc) / 2 + (q[0] * xloc ** 3) / 6 + dD) / EI;
+        rec.V[c] = V / 1000;
+        rec.M[c] = M / 1000;
+        rec.v[c] = v * 1000;
+        rec.theta[c] = th;
+      }
+      stations.push(rec);
+    });
+  }
+  const reactions = supports
+    .map((support, i) => ({ node: i + 1, x: nodeX[i], support, vertical: emptyCaseMap(), moment: emptyCaseMap() }))
+    .filter((r) => r.support !== "Free")
+    .map((r) => {
+      const i = r.node - 1;
+      for (const c of LOAD_CASES) {
+        r.vertical[c] = R[c][2 * i] / 1000;
+        r.moment[c] = R[c][2 * i + 1] / 1000;
+      }
+      return r;
+    });
+  const equilibrium = LOAD_CASES.map((c) => {
+    let applied = 0;
+    for (let i = 0; i < nDof; i += 2) applied += F[c][i] / 1000;
+    let react = 0;
+    for (let i = 0; i < nDof; i += 2) react += R[c][i] / 1000;
+    const residual = applied + react;
+    return { case: c, applied, reactions: react, residual, ok: Math.abs(residual) <= 1e-4 * (1 + Math.abs(applied)) };
+  });
+  const comboById = new Map(model.combinations.map((c) => [c.id, c]));
+  const selectedCombo = comboById.get(model.selectedComboId) ?? model.combinations[0] ?? {
+    id: "none", name: "None", class: "User", factors: emptyCaseMap(0), notes: "",
+  };
+  const continuity = elems.map((el) => {
+    let vRec = 0, vNod = 0;
+    for (const c of LOAD_CASES) {
+      const f = selectedCombo.factors[c] ?? 0;
+      if (f === 0) continue;
+      const q = el.q[c];
+      const wSelf = density * el.A * G_ACCEL;
+      const { dD } = macaulay(el, c, el.L, wSelf, model.includeSelfWeight);
+      const th0 = U[c][el.dofs[1]];
+      const v0 = U[c][el.dofs[0]];
+      const EI = el.E * el.I;
+      const v = v0 + th0 * el.L + ((-q[1] * el.L * el.L) / 2 + (q[0] * el.L ** 3) / 6 + dD) / EI;
+      vRec += v * f;
+      vNod += U[c][el.dofs[2]] * f;
+    }
+    const diffMm = (vRec - vNod) * 1000;
+    return { element: elems.indexOf(el) + 1, diffMm, ok: Math.abs(diffMm) < 1e-6 };
+  });
+  const Vsel = stations.map((s) => combine(s.V, selectedCombo.factors));
+  const Msel = stations.map((s) => combine(s.M, selectedCombo.factors));
+  const vsel = stations.map((s) => combine(s.v, selectedCombo.factors));
+  const thsel = stations.map((s) => -combine(s.theta, selectedCombo.factors) * (180 / Math.PI));
+  const tau = stations.map((s, i) => {
+    const Av_mm2 = elems[s.elementIndex].Av * 1e6;
+    return Av_mm2 > 0 ? Math.abs((Vsel[i] * 1000) / Av_mm2) : 0;
+  });
+  const sigmaTop = stations.map((s, i) => {
+    const Z_mm3 = elems[s.elementIndex].Z * 1e9;
+    return Z_mm3 > 0 ? -(Msel[i] * 1e6) / Z_mm3 : 0;
+  });
+  const sigmaBot = stations.map((s, i) => {
+    const Z_mm3 = elems[s.elementIndex].Z * 1e9;
+    return Z_mm3 > 0 ? (Msel[i] * 1e6) / Z_mm3 : 0;
+  });
+  const xOf = (i) => stations[i]?.x ?? 0;
+  const ext = (label, values, pick, unit) => {
+    if (!values.length) return { label, value: 0, x: 0, combination: selectedCombo.name, unit };
+    if (pick === "max") {
+      const { imax } = argExtrema(values);
+      return { label, value: values[imax], x: xOf(imax), combination: selectedCombo.name, unit };
+    }
+    if (pick === "min") {
+      const { imin } = argExtrema(values);
+      return { label, value: values[imin], x: xOf(imin), combination: selectedCombo.name, unit };
+    }
+    let ibest = 0;
+    for (let i = 1; i < values.length; i++) if (Math.abs(values[i]) > Math.abs(values[ibest])) ibest = i;
+    return { label, value: values[ibest], x: xOf(ibest), combination: selectedCombo.name, unit };
+  };
+  const extrema = [
+    ext("Maximum positive shear", Vsel, "max", "kN"),
+    ext("Maximum negative shear", Vsel, "min", "kN"),
+    ext("Maximum sagging moment", Msel, "max", "kNm"),
+    ext("Maximum hogging moment", Msel, "min", "kNm"),
+    ext("Maximum upward deflection", vsel, "max", "mm"),
+    ext("Maximum downward deflection", vsel, "min", "mm"),
+    ext("Maximum clockwise slope", thsel, "max", "deg"),
+    ext("Maximum counter-clockwise slope", thsel, "min", "deg"),
+    ext("Maximum average shear stress", tau, "max", "MPa"),
+    ext("Maximum absolute bending stress", sigmaTop.map((t, i) => Math.max(Math.abs(t), Math.abs(sigmaBot[i]))), "max", "MPa"),
+  ];
+  const combos = model.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+  const envVmax = [], envVmin = [], envMmax = [], envMmin = [];
+  const envVmaxC = [], envVminC = [], envMmaxC = [], envMminC = [];
+  const envVup = [], envVdn = [], envVupC = [], envVdnC = [], envSig = [], envSigC = [];
+  for (let i = 0; i < stations.length; i++) {
+    let vmax = -Infinity, vmin = Infinity, mmax = -Infinity, mmin = Infinity;
+    let vup = -Infinity, vdn = Infinity, sig = -Infinity;
+    let cvmax = "", cvmin = "", cmmax = "", cmmin = "", cvup = "", cvdn = "", csig = "";
+    for (const combo of combos) {
+      const V = combine(stations[i].V, combo.factors);
+      const M = combine(stations[i].M, combo.factors);
+      const v = combine(stations[i].v, combo.factors);
+      const Z_mm3 = elems[stations[i].elementIndex].Z * 1e9;
+      const sAbs = Z_mm3 > 0 ? Math.abs((M * 1e6) / Z_mm3) : 0;
+      if (V > vmax) { vmax = V; cvmax = combo.name; }
+      if (V < vmin) { vmin = V; cvmin = combo.name; }
+      if (M > mmax) { mmax = M; cmmax = combo.name; }
+      if (M < mmin) { mmin = M; cmmin = combo.name; }
+      if (v > vup) { vup = v; cvup = combo.name; }
+      if (v < vdn) { vdn = v; cvdn = combo.name; }
+      if (sAbs > sig) { sig = sAbs; csig = combo.name; }
+    }
+    envVmax.push(vmax); envVmin.push(vmin);
+    envMmax.push(mmax); envMmin.push(mmin);
+    envVup.push(vup); envVdn.push(vdn); envSig.push(sig);
+    envVmaxC.push(cvmax); envVminC.push(cvmin);
+    envMmaxC.push(cmmax); envMminC.push(cmmin);
+    envVupC.push(cvup); envVdnC.push(cvdn); envSigC.push(csig);
+  }
+  const envItem = (label, values, names, pick, unit) => {
+    if (!values.length || !Number.isFinite(values[0])) return { label, value: 0, x: 0, combination: "—", governing: "—", unit };
+    const { imax, imin } = argExtrema(values);
+    const i = pick === "max" ? imax : imin;
+    return { label, value: values[i], x: xOf(i), combination: names[i], governing: names[i], unit };
+  };
+  const envelope = [
+    envItem("Maximum shear", envVmax, envVmaxC, "max", "kN"),
+    envItem("Minimum shear", envVmin, envVminC, "min", "kN"),
+    envItem("Maximum moment", envMmax, envMmaxC, "max", "kNm"),
+    envItem("Minimum moment", envMmin, envMminC, "min", "kNm"),
+    envItem("Maximum deflection", envVup, envVupC, "max", "mm"),
+    envItem("Minimum deflection", envVdn, envVdnC, "min", "mm"),
+    envItem("Maximum absolute bending stress", envSig, envSigC, "max", "MPa"),
+  ];
+  const verticalXs = nodeX.filter((_, i) => {
+    const s = supports[i];
+    return s === "Pinned" || s === "Roller" || s === "Fixed";
+  });
+  let longestSpan = 0;
+  for (let i = 1; i < verticalXs.length; i++) longestSpan = Math.max(longestSpan, verticalXs[i] - verticalXs[i - 1]);
+  const maxAbsMm = vsel.length ? Math.max(...vsel.map((v) => Math.abs(v))) : 0;
+  const allowableMm = longestSpan > 0 && model.deflectionLimitN > 0 ? (longestSpan * 1000) / model.deflectionLimitN : 0;
+  const utilisation = allowableMm > 0 ? maxAbsMm / allowableMm : 0;
+  const status = invalidLoads.length > 0 ? "INVALID LOAD INPUT" : equilibrium.every((e) => e.ok) ? "OK" : "EQUILIBRIUM CHECK";
+  return {
+    ok: status === "OK" || status === "INVALID LOAD INPUT",
+    status, solverReady, supportStable, invalidLoads, warnings, totalLength,
+    E: E_mpa, density, nElements: nEl, nNodes, nodeX, stations, reactions,
+    selected: {
+      id: selectedCombo.id, name: selectedCombo.name, factors: selectedCombo.factors,
+      V: Vsel, M: Msel, v: vsel, slopeDeg: thsel, tau, sigmaTop, sigmaBot, extrema,
+    },
+    envelope, equilibrium, continuity,
+    deflectionCheck: { longestSpan, limitN: model.deflectionLimitN, allowableMm, maxAbsMm, utilisation, status: allowableMm <= 0 ? "N/A" : utilisation <= 1 ? "PASS" : "FAIL" },
+    sectionAt,
+  };
+}
+
+const STORAGE_KEY = "cba-model-v1";
+const STORAGE_KEY_LEGACY = "spanline-model-v1";
+const TABS = [
+  { id: "geometry", label: "Geometry" },
+  { id: "loads", label: "Loads" },
+  { id: "combos", label: "Combinations" },
+  { id: "results", label: "Results" },
+  { id: "qa", label: "QA" },
+];
+const CASE_LANE = { G: 0, Q1: 1, Q2: 2, "W+": 0, "W-": 1, O: 2 };
+
+const ui = {
+  tab: "results",
+  probeX: null,
+  showInactive: false,
+  hover: {},
+};
+
+let model = excelExample();
+
+function hydrate() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_LEGACY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.elements) || !Array.isArray(parsed.loads)) return;
+    const base = excelExample();
+    const zero = LOAD_CASES.reduce((acc, k) => ((acc[k] = 0), acc), {});
+    model = resizeElements(
+      {
+        ...base,
+        ...parsed,
+        combinations: (parsed.combinations ?? base.combinations).map((c) => ({
+          ...c,
+          factors: { ...zero, ...c.factors },
+        })),
+      },
+      parsed.nElements ?? base.nElements,
+    );
+  } catch {
+    /* keep default */
+  }
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(model));
+  } catch {
+    /* ignore */
+  }
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "\u0026amp;")
+    .replace(/</g, "\u0026lt;")
+    .replace(/>/g, "\u0026gt;")
+    .replace(/"/g, "\u0026quot;")
+    .replace(/'/g, "\u0026#39;");
+}
+
+function badge(text, tone) {
+  return `<span class="badge ${tone || "muted"}">${esc(text)}</span>`;
+}
+
+function iconDownload() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>`;
+}
+function iconUpload() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>`;
+}
+function iconReset() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>`;
+}
+function iconPlus() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`;
+}
+function iconTrash() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
+}
+
+function options(list, selected) {
+  return list
+    .map((v) => {
+      const val = typeof v === "object" ? v.value : v;
+      const lab = typeof v === "object" ? v.label : v;
+      return `<option value="${esc(val)}"${String(val) === String(selected) ? " selected" : ""}>${esc(lab)}</option>`;
+    })
+    .join("");
+}
+
+function magUnit(type) {
+  if (type === "UDL") return "kN/m";
+  if (type === "Moment") return "kNm";
+  return "kN";
+}
+
+function combinedReaction(r, factors) {
+  let V = 0;
+  let M = 0;
+  for (const c of LOAD_CASES) {
+    V += r.vertical[c] * (factors[c] ?? 0);
+    M += r.moment[c] * (factors[c] ?? 0);
+  }
+  return { V, M };
+}
+
+function seriesFrom(result, field) {
+  return result.stations.map((s, i) => ({ x: s.x, y: result.selected[field][i] ?? 0 }));
+}
+
+function envelopeTrace(stations, combos, field, pick) {
+  return stations.map((s) => {
+    let best = pick === "max" ? -Infinity : Infinity;
+    for (const c of combos) {
+      let v = 0;
+      for (const k of LOAD_CASES) v += s[field][k] * (c.factors[k] ?? 0);
+      if (pick === "max") best = Math.max(best, v);
+      else best = Math.min(best, v);
+    }
+    return { x: s.x, y: Number.isFinite(best) ? best : 0 };
+  });
+}
+
+function nearest(points, x) {
+  if (!points.length) return null;
+  let best = points[0];
+  let bestD = Math.abs(best.x - x);
+  for (const p of points) {
+    const d = Math.abs(p.x - x);
+    if (d < bestD) {
+      best = p;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+function supportMark(x, y, type) {
+  if (type === "Fixed") {
+    const ticks = [-8, -4, 0, 4, 8]
+      .map((dx) => `<line x1="${x + dx - 3}" y1="${y + 28}" x2="${x + dx + 3}" y2="${y + 18}" stroke="var(--color-muted)" stroke-width="1"/>`)
+      .join("");
+    return `<g><line x1="${x}" y1="${y + 3}" x2="${x}" y2="${y + 22}" stroke="var(--color-fg)" stroke-width="1.4"/>${ticks}</g>`;
+  }
+  const tri = `<polygon points="${x},${y + 4} ${x - 8},${y + 18} ${x + 8},${y + 18}" fill="none" stroke="var(--color-fg)" stroke-width="1.3"/>`;
+  if (type === "Roller") {
+    return `<g>${tri}<circle cx="${x - 5}" cy="${y + 22}" r="3" fill="none" stroke="var(--color-muted)" stroke-width="1.1"/><circle cx="${x + 5}" cy="${y + 22}" r="3" fill="none" stroke="var(--color-muted)" stroke-width="1.1"/></g>`;
+  }
+  return `<g>${tri}<line x1="${x - 10}" y1="${y + 18}" x2="${x + 10}" y2="${y + 18}" stroke="var(--color-muted)" stroke-width="1.1"/></g>`;
+}
+
+function schematicSvg(mod, result) {
+  const n = result.nElements;
+  const L = Math.max(result.totalLength, 1e-6);
+  const W = 920;
+  const H = 204;
+  const padX = 36;
+  const beamY = 92;
+  const inner = W - padX * 2;
+  const xAt = (x) => padX + (x / L) * inner;
+  const loads = mod.loads.filter((l) => l.active && Number.isFinite(l.magnitude) && l.magnitude !== 0);
+  const maxUdl = Math.max(0.001, ...loads.filter((l) => l.type === "UDL").map((l) => Math.abs(l.magnitude)));
+  const reactionAt = new Map();
+  for (const r of result.reactions) {
+    reactionAt.set(r.node, combinedReaction(r, result.selected.factors).V);
+  }
+
+  const elLabels = result.nodeX
+    .slice(0, n)
+    .map((x0, i) => {
+      const x1 = result.nodeX[i + 1];
+      const cx = (xAt(x0) + xAt(x1)) / 2;
+      return `<text x="${cx}" y="16" text-anchor="middle" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(mod.elements[i]?.description || "E" + (i + 1))} · ${esc(formatNum(x1 - x0, 2))} m</text>`;
+    })
+    .join("");
+
+  const loadDraw = loads
+    .map((ld) => {
+      if (ld.type === "UDL") {
+        const a = Math.max(0, ld.x1);
+        const b = Math.min(L, ld.x2);
+        const x1 = xAt(a);
+        const x2 = xAt(b);
+        const up = ld.magnitude < 0;
+        const lane = CASE_LANE[ld.case] ?? 0;
+        const h = 8 + (Math.abs(ld.magnitude) / maxUdl) * 14;
+        const y0 = up ? beamY + 8 + lane * 3 : beamY - 8 - lane * 3;
+        const y1 = up ? y0 + h : y0 - h;
+        const fill = ld.case.startsWith("W") ? "var(--color-shear)" : "var(--color-moment)";
+        const steps = Math.max(3, Math.min(24, Math.round((x2 - x1) / 28)));
+        const pts = [];
+        const lines = [];
+        for (let i = 0; i <= steps; i++) {
+          const x = x1 + ((x2 - x1) * i) / steps;
+          pts.push(`${x},${y1}`);
+          lines.push(`<line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="${fill}" stroke-width="0.7"/>`);
+        }
+        return `<g opacity="0.85"><polygon points="${x1},${y0} ${pts.join(" ")} ${x2},${y0}" fill="${fill}" fill-opacity="0.18" stroke="${fill}" stroke-width="0.8"/>${lines.join("")}</g>`;
+      }
+      const x = xAt(Math.min(L, Math.max(0, ld.x1)));
+      if (ld.type === "Moment") {
+        const poly = ld.magnitude >= 0 ? "10,-14 6,-8 14,-10" : "-10,-14 -6,-8 -14,-10";
+        return `<g transform="translate(${x} ${beamY})"><path d="M -10 -14 A 12 12 0 1 1 10 -14" fill="none" stroke="var(--color-moment)" stroke-width="1.4"/><polygon points="${poly}" fill="var(--color-moment)"/></g>`;
+      }
+      const down = ld.magnitude >= 0;
+      const y1 = down ? beamY - 36 : beamY + 36;
+      const arrow = down
+        ? `${x},${beamY - 4} ${x - 4},${beamY - 12} ${x + 4},${beamY - 12}`
+        : `${x},${beamY + 4} ${x - 4},${beamY + 12} ${x + 4},${beamY + 12}`;
+      return `<g><line x1="${x}" y1="${y1}" x2="${x}" y2="${down ? beamY - 6 : beamY + 6}" stroke="var(--color-fg)" stroke-width="1.3"/><polygon points="${arrow}" fill="var(--color-fg)"/></g>`;
+    })
+    .join("");
+
+  const nodes = result.nodeX
+    .map((x, i) => {
+      const px = xAt(x);
+      const s = mod.supports[i] ?? "Free";
+      const Rv = reactionAt.get(i + 1);
+      const end = i === 0 || i === result.nodeX.length - 1;
+      const rvTxt =
+        Rv != null && Math.abs(Rv) >= 1e-6
+          ? `<text x="${px}" y="${beamY + 36}" text-anchor="middle" fill="var(--color-shear)" font-size="8" font-family="var(--font-mono)">${esc(formatNum(Rv, 2))}</text>`
+          : "";
+      const xTxt = end
+        ? `<text x="${px}" y="${s === "Free" ? beamY + 28 : beamY + 50}" text-anchor="${i === 0 ? "start" : "end"}" fill="var(--color-muted)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(x, 2))}</text>`
+        : "";
+      return `<g><circle cx="${px}" cy="${beamY}" r="2.6" fill="var(--color-bg)" stroke="var(--color-beam)" stroke-width="1.2"/>${s !== "Free" ? supportMark(px, beamY, s) : ""}${rvTxt}${xTxt}</g>`;
+    })
+    .join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Beam elevation">
+    <line x1="${padX}" y1="${beamY}" x2="${W - padX}" y2="${beamY}" stroke="var(--color-beam)" stroke-width="3.5" stroke-linecap="round"/>
+    ${elLabels}${loadDraw}${nodes}
+    <text x="${padX}" y="${H - 10}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">x = 0</text>
+    <text x="${W - padX}" y="${H - 10}" text-anchor="end" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(L, 3))} m</text>
+  </svg>`;
+}
+
+function forceDiagramHtml(id, title, unit, color, points, nodeX, envelopeMax, envelopeMin) {
+  const W = 920;
+  const H = 168;
+  const pad = { l: 52, r: 16, t: 18, b: 28 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const ys = points.map((p) => p.y);
+  const envYs = [...(envelopeMax ?? []).map((p) => p.y), ...(envelopeMin ?? []).map((p) => p.y)];
+  const all = ys.concat(envYs);
+  let min = Math.min(0, ...all);
+  let max = Math.max(0, ...all);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const span = max - min;
+  min -= span * 0.08;
+  max += span * 0.08;
+  const L = Math.max(points[points.length - 1]?.x ?? 1, 1e-6);
+  const xAt = (x) => pad.l + (x / L) * innerW;
+  const yAt = (y) => pad.t + ((max - y) / (max - min)) * innerH;
+  const toPath = (pts) => {
+    if (!pts.length) return "";
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(p.x).toFixed(2)} ${yAt(p.y).toFixed(2)}`).join(" ");
+  };
+  const areaPath = (pts) => {
+    if (!pts.length) return "";
+    const z = yAt(0);
+    const body = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(p.x).toFixed(2)} ${yAt(p.y).toFixed(2)}`).join(" ");
+    const last = pts[pts.length - 1];
+    const first = pts[0];
+    return `${body} L ${xAt(last.x).toFixed(2)} ${z.toFixed(2)} L ${xAt(first.x).toFixed(2)} ${z.toFixed(2)} Z`;
+  };
+  const maxPt = points.reduce((a, b) => (b.y > a.y ? b : a), points[0] ?? { x: 0, y: 0 });
+  const minPt = points.reduce((a, b) => (b.y < a.y ? b : a), points[0] ?? { x: 0, y: 0 });
+  const hover = ui.hover[id];
+  const probe = ui.probeX == null ? null : nearest(points, ui.probeX);
+  const shown = hover ?? (probe ? { x: probe.x, y: probe.y } : null);
+  const pinX = hover?.x ?? probe?.x;
+  const nodeLines = nodeX
+    .map(
+      (x, i) =>
+        `<line x1="${xAt(x)}" y1="${pad.t}" x2="${xAt(x)}" y2="${H - pad.b}" stroke="var(--color-border)" stroke-width="1"${i === 0 || i === nodeX.length - 1 ? "" : ' stroke-dasharray="2 4"'}/>`,
+    )
+    .join("");
+  const env =
+    envelopeMax && envelopeMin
+      ? `<path d="${toPath(envelopeMax)}" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="1"/><path d="${toPath(envelopeMin)}" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="1"/>`
+      : "";
+  const pin =
+    pinX != null
+      ? `<line x1="${xAt(pinX)}" y1="${pad.t}" x2="${xAt(pinX)}" y2="${H - pad.b}" stroke="var(--color-fg)" stroke-opacity="0.45"/>${shown ? `<circle cx="${xAt(shown.x)}" cy="${yAt(shown.y)}" r="3.2" fill="${color}" stroke="var(--color-bg)" stroke-width="1"/>` : ""}`
+      : "";
+  const read = shown
+    ? `x ${formatNum(shown.x, 3)} m · ${formatNum(shown.y, 3)} ${unit}`
+    : `max ${formatNum(maxPt?.y ?? 0, 3)} · min ${formatNum(minPt?.y ?? 0, 3)}`;
+  return `<div class="diagram" data-diagram="${esc(id)}">
+    <div class="diagram-head">
+      <div><h3>${esc(title)}</h3><span class="unit">${esc(unit)}</span></div>
+      <p class="read" data-readout>${esc(read)}</p>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)} diagram" data-diagram-svg="${esc(id)}">
+      <line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}" stroke="var(--color-border-strong)" stroke-width="1"/>
+      ${nodeLines}${env}
+      <path d="${areaPath(points)}" fill="${color}" fill-opacity="0.22"/>
+      <path d="${toPath(points)}" fill="none" stroke="${color}" stroke-width="1.6"/>
+      ${pin}
+      <text x="4" y="${yAt(max) + 8}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(max, 2))}</text>
+      <text x="4" y="${yAt(min)}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(min, 2))}</text>
+    </svg>
+  </div>`;
+}
+
+function renderGeometry(mod, result) {
+  const isCustom = mod.defaultSection === "Custom";
+  const eVal = mod.material === "Custom" ? mod.customE : result.E;
+  const dVal = mod.material === "Custom" ? mod.customDensity : result.density;
+  const rows = mod.elements
+    .slice(0, mod.nElements)
+    .map((el, i) => {
+      const sec = result.sectionAt[i];
+      const endSupport =
+        i === mod.nElements - 1
+          ? `<select class="sel sm" data-act="support" data-index="${i + 1}">${options(SUPPORT_TYPES, mod.supports[i + 1])}</select>`
+          : `<span class="subtle">→</span>`;
+      return `<tr>
+        <td class="mono">${i + 1}</td>
+        <td><input class="field sm" data-act="element" data-index="${i}" data-field="description" value="${esc(el.description)}"></td>
+        <td class="w-24"><input class="field sm" type="number" step="0.001" min="0.01" data-act="element" data-index="${i}" data-field="length" value="${esc(inputValue(el.length, 6))}"></td>
+        <td class="w-36"><select class="sel sm" data-act="element" data-index="${i}" data-field="section">${options(SECTION_LIBRARY.map((s) => s.name), el.section)}</select></td>
+        <td class="mono">${esc(formatNum(sec?.I ?? 0, 0))}</td>
+        <td class="mono">${esc(formatNum(sec?.Z ?? 0, 0))}</td>
+        <td class="mono">${esc(formatNum(result.nodeX[i] ?? 0, 3))}</td>
+        <td class="mono">${esc(formatNum(result.nodeX[i + 1] ?? 0, 3))}</td>
+        <td class="w-28"><select class="sel sm" data-act="support" data-index="${i}">${options(SUPPORT_TYPES, mod.supports[i])}</select></td>
+        <td class="w-28">${endSupport}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="geo-grid">
+    <section class="card">
+      <h2>Model</h2>
+      <p class="hint">Euler–Bernoulli beam, linear elastic. Units: m, kN, kNm, mm.</p>
+      <div class="fields">
+        <label class="label"><span>Elements</span><input class="field" type="number" min="1" max="24" data-act="patch" data-field="nElements" value="${esc(inputValue(mod.nElements, 0))}"></label>
+        <label class="label"><span>Material</span><select class="sel" data-act="patch" data-field="material">${options(MATERIALS, mod.material)}</select></label>
+        <label class="label"><span>E (MPa)</span><input class="field" type="number" data-act="patch" data-field="customE" value="${esc(inputValue(eVal, 0))}" ${mod.material !== "Custom" ? "disabled" : ""}></label>
+        <label class="label"><span>Density (kg/m³)</span><input class="field" type="number" data-act="patch" data-field="customDensity" value="${esc(inputValue(dVal, 2))}" ${mod.material !== "Custom" ? "disabled" : ""}></label>
+        <label class="label"><span>Default section</span><select class="sel" data-act="default-section">${options(SECTION_LIBRARY.map((s) => s.name), mod.defaultSection)}</select></label>
+        <label class="label"><span>Stations / element</span><select class="sel" data-act="patch" data-field="stationsPerElement">${options([13, 26, 51], mod.stationsPerElement)}</select></label>
+        <label class="label"><span>I (mm⁴)</span><input class="field" type="number" data-act="patch" data-field="customI" value="${esc(inputValue(mod.customI, 2))}" ${!isCustom ? "disabled" : ""}></label>
+        <label class="label"><span>Z (mm³)</span><input class="field" type="number" data-act="patch" data-field="customZ" value="${esc(inputValue(mod.customZ, 2))}" ${!isCustom ? "disabled" : ""}></label>
+        <label class="label"><span>A (mm²)</span><input class="field" type="number" data-act="patch" data-field="customA" value="${esc(inputValue(mod.customA, 4))}" ${!isCustom ? "disabled" : ""}></label>
+        <label class="label"><span>Av (mm²)</span><input class="field" type="number" data-act="patch" data-field="customAv" value="${esc(inputValue(mod.customAv, 4))}" ${!isCustom ? "disabled" : ""}></label>
+      </div>
+      <label class="check"><input type="checkbox" data-act="patch-bool" data-field="includeSelfWeight" ${mod.includeSelfWeight ? "checked" : ""}> Include self-weight in case G</label>
+      <p class="mono-note">Total length ${esc(formatNum(result.totalLength, 3))} m · ${result.nNodes} nodes</p>
+    </section>
+    <section class="card" style="min-width:0">
+      <div class="row-head">
+        <h2>Elements and supports</h2>
+        <button class="btn" type="button" data-act="add-span">Add span</button>
+      </div>
+      <div class="scroll">
+        <table class="data min-56">
+          <thead><tr>
+            <th>El</th><th>Description</th><th>L (m)</th><th>Section</th><th>I (mm⁴)</th><th>Z (mm³)</th><th>Start</th><th>End</th><th>Support i</th><th>Support j</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="hint">Nodes are placed automatically from element lengths. I and Z are resolved from the section library. Pinned and roller restrain vertical displacement; fixed also restrains rotation.</p>
+    </section>
+  </div>`;
+}
+
+function renderLoads(mod, result) {
+  const rows = mod.loads
+    .map((ld, i) => ({ ld, i }))
+    .filter(({ ld }) => ui.showInactive || ld.active)
+    .map(({ ld, i }) => {
+      const inactive = ld.active ? "" : " opacity-50";
+      return `<tr class="${inactive}">
+        <td><input type="checkbox" data-act="load" data-index="${i}" data-field="active" data-type="bool" ${ld.active ? "checked" : ""} aria-label="${esc(ld.id)} active"></td>
+        <td class="mono">${esc(ld.id)}</td>
+        <td class="w-24"><select class="sel sm" data-act="load" data-index="${i}" data-field="case">${options(LOAD_CASES, ld.case)}</select></td>
+        <td class="w-28"><select class="sel sm" data-act="load" data-index="${i}" data-field="type">${options(LOAD_TYPES, ld.type)}</select></td>
+        <td class="w-24"><input class="field sm" type="number" step="0.001" data-act="load" data-index="${i}" data-field="x1" value="${esc(inputValue(ld.x1, 6))}"></td>
+        <td class="w-24"><input class="field sm" type="number" step="0.001" data-act="load" data-index="${i}" data-field="x2" value="${esc(inputValue(ld.x2, 6))}" ${ld.type !== "UDL" ? "disabled" : ""}></td>
+        <td class="w-40"><div class="mag"><input class="field sm" type="number" step="0.001" data-act="load" data-index="${i}" data-field="magnitude" value="${esc(inputValue(ld.magnitude, 6))}"><span class="unit">${esc(magUnit(ld.type))}</span></div></td>
+        <td><input class="field sm" data-act="load" data-index="${i}" data-field="description" value="${esc(ld.description)}" placeholder="Optional note"></td>
+        <td><button class="btn ghost icon" type="button" data-act="remove-load" data-index="${i}" aria-label="Remove ${esc(ld.id)}">${iconTrash()}</button></td>
+      </tr>`;
+    })
+    .join("");
+  const nActive = mod.loads.filter((l) => l.active).length;
+  return `<section class="card">
+    <div class="row-head">
+      <div>
+        <h2>Coordinate loads</h2>
+        <p class="hint" style="max-width:42rem">Enter by global x. Point: kN downward positive. Moment: kNm counter-clockwise positive. UDL: kN/m downward positive between x1 and x2. Loads may sit inside an element — no manual split required.</p>
+      </div>
+      <div class="actions">
+        <label class="mini-check"><input type="checkbox" data-act="show-inactive" ${ui.showInactive ? "checked" : ""}> Show inactive</label>
+        <button class="btn" type="button" data-act="add-load">${iconPlus()} Add load</button>
+      </div>
+    </div>
+    <div class="scroll">
+      <table class="data min-56">
+        <thead><tr><th>On</th><th>ID</th><th>Case</th><th>Type</th><th>x1 (m)</th><th>x2 (m)</th><th>Magnitude</th><th>Description</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="mono-note">${nActive} active · beam ${result.totalLength.toFixed(3)} m</p>
+  </section>`;
+}
+
+function renderCombos(mod) {
+  const rows = mod.combinations
+    .map((c) => {
+      const selected = c.id === mod.selectedComboId ? " selected" : "";
+      const factors = LOAD_CASES.map(
+        (k) =>
+          `<td class="w-24"><input class="field sm" type="number" step="0.05" data-act="combo-factor" data-id="${esc(c.id)}" data-factor="${esc(k)}" value="${esc(inputValue(c.factors[k], 4))}"></td>`,
+      ).join("");
+      return `<tr class="combo-row${selected}" data-act="select-combo" data-id="${esc(c.id)}">
+        <td class="w-32"><input class="field sm" data-act="combo-field" data-id="${esc(c.id)}" data-field="name" value="${esc(c.name)}"></td>
+        <td class="muted">${esc(c.class)}</td>
+        ${factors}
+        <td><input class="field sm" data-act="combo-field" data-id="${esc(c.id)}" data-field="notes" value="${esc(c.notes)}"></td>
+      </tr>`;
+    })
+    .join("");
+  const legend = LOAD_CASES.map((c) => `<li><p class="k">${esc(c)}</p><p class="hint">${esc(CASE_LEGEND[c])}</p></li>`).join("");
+  return `<div class="combo-grid">
+    <section class="card" style="min-width:0">
+      <div class="row-head">
+        <div>
+          <h2>Load combinations</h2>
+          <p class="hint">Factors are user-defined. Confirm ULS / SLS values against the project design basis. Click a row to analyse it.</p>
+        </div>
+        <label class="label w-40">
+          <span>Selected combination</span>
+          <select class="sel" data-act="patch" data-field="selectedComboId">${options(mod.combinations.map((c) => ({ value: c.id, label: c.name })), mod.selectedComboId)}</select>
+        </label>
+      </div>
+      <div class="scroll">
+        <table class="data min-48">
+          <thead><tr><th>Name</th><th>Class</th>${LOAD_CASES.map((c) => `<th>${esc(c)}</th>`).join("")}<th>Notes</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
+    <aside class="card">
+      <h2>Load cases</h2>
+      <ul class="legend-list">${legend}</ul>
+    </aside>
+  </div>`;
+}
+
+function renderResults(mod, result) {
+  const combos = mod.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+  const V = seriesFrom(result, "V");
+  const M = seriesFrom(result, "M");
+  const v = seriesFrom(result, "v");
+  const slope = seriesFrom(result, "slopeDeg");
+  const tau = seriesFrom(result, "tau");
+  const sigma = seriesFrom(result, "sigmaTop");
+  const dc = result.deflectionCheck;
+  const cards = result.selected.extrema
+    .map((e) => {
+      const on = ui.probeX != null && Math.abs(e.x - ui.probeX) < 1e-9 ? " on" : "";
+      return `<button class="ext-card${on}" type="button" data-act="probe" data-x="${e.x}">
+        <p class="k">${esc(e.label)}</p>
+        <p class="v">${esc(formatNum(e.value, 3))}<span>${esc(e.unit)}</span></p>
+        <p class="x">x = ${esc(formatNum(e.x, 3))} m · ${esc(e.combination)}</p>
+      </button>`;
+    })
+    .join("");
+
+  let pin = `<p class="hint">Click a diagram or extrema card to pin a station.</p>`;
+  if (ui.probeX != null && result.stations.length) {
+    let best = Infinity;
+    for (const s of result.stations) best = Math.min(best, Math.abs(s.x - ui.probeX));
+    const bits = result.stations
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => Math.abs(s.x - ui.probeX) <= best + 1e-12)
+      .map(({ s, i }) => {
+        const face = s.side !== "interior" ? ` · ${s.side}` : "";
+        return `<span>V ${esc(formatNum(result.selected.V[i], 3))} kN · M ${esc(formatNum(result.selected.M[i], 3))} kNm · δ ${esc(formatNum(result.selected.v[i], 3))} mm${esc(face)}</span>`;
+      })
+      .join("");
+    pin = `<div class="pinbar"><p class="vals">Pinned x = ${esc(formatNum(ui.probeX, 3))} m${bits}</p><button class="btn ghost" type="button" data-act="clear-probe">Clear pin</button></div>`;
+  }
+
+  const reactRows = result.reactions
+    .map((r) => {
+      const { V: Vv, M: Mv } = combinedReaction(r, result.selected.factors);
+      return `<tr class="clickable" data-act="probe" data-x="${r.x}">
+        <td class="num">${esc(formatNum(r.x, 3))}</td>
+        <td>${esc(r.support)}</td>
+        <td class="num">${esc(formatNum(Vv, 4))}</td>
+        <td class="num">${esc(formatNum(Mv, 4))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const envRows = result.envelope
+    .map(
+      (e) => `<tr class="clickable" data-act="probe" data-x="${e.x}">
+        <td>${esc(e.label)}</td>
+        <td class="num">${esc(formatNum(e.value, 3))} ${esc(e.unit)}</td>
+        <td class="num">${esc(formatNum(e.x, 3))}</td>
+        <td>${esc(e.governing)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const stRows = result.stations
+    .map((s, i) => {
+      const on = ui.probeX != null && Math.abs(s.x - ui.probeX) < 1e-9 ? " on" : "";
+      return `<tr class="clickable${on}" data-act="probe" data-x="${s.x}">
+        <td class="num">${esc(formatNum(s.x, 3))}</td>
+        <td class="num">${s.elementIndex + 1}</td>
+        <td class="muted">${s.side === "interior" ? "—" : esc(s.side)}</td>
+        <td class="num">${esc(formatNum(result.selected.V[i], 3))}</td>
+        <td class="num">${esc(formatNum(result.selected.M[i], 3))}</td>
+        <td class="num">${esc(formatNum(result.selected.v[i], 3))}</td>
+        <td class="num">${esc(formatNum(result.selected.slopeDeg[i], 4))}</td>
+        <td class="num">${esc(formatNum(result.selected.tau[i], 3))}</td>
+        <td class="num">${esc(formatNum(result.selected.sigmaTop[i], 3))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const dcTone = dc.status === "PASS" ? "ok" : dc.status === "FAIL" ? "danger" : "muted";
+
+  return `<div class="space-y">
+    <div class="extrema">${cards}</div>
+    ${pin}
+    ${forceDiagramHtml("V", "Shear", "kN", "var(--color-shear)", V, result.nodeX, envelopeTrace(result.stations, combos, "V", "max"), envelopeTrace(result.stations, combos, "V", "min"))}
+    ${forceDiagramHtml("M", "Bending moment (sagging +)", "kNm", "var(--color-moment)", M, result.nodeX, envelopeTrace(result.stations, combos, "M", "max"), envelopeTrace(result.stations, combos, "M", "min"))}
+    ${forceDiagramHtml("v", "Deflection (up +)", "mm", "var(--color-defl)", v, result.nodeX, envelopeTrace(result.stations, combos, "v", "max"), envelopeTrace(result.stations, combos, "v", "min"))}
+    ${forceDiagramHtml("slope", "Slope (clockwise +)", "deg", "var(--color-accent)", slope, result.nodeX)}
+    ${forceDiagramHtml("tau", "Average shear stress", "MPa", "var(--color-shear)", tau, result.nodeX)}
+    ${forceDiagramHtml("sigma", "Bending stress, top fibre", "MPa", "var(--color-moment)", sigma, result.nodeX)}
+    <div class="split-2">
+      <section class="card">
+        <h2>Support reactions — ${esc(result.selected.name)}</h2>
+        <p class="hint">Vertical positive upward. Moment positive counter-clockwise.</p>
+        <div class="scroll">
+          <table class="data">
+            <thead><tr><th>x (m)</th><th>Support</th><th>V (kN)</th><th>M (kNm)</th></tr></thead>
+            <tbody>${reactRows}</tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card">
+        <div class="row-head">
+          <h2>Deflection check</h2>
+          ${badge(dc.status, dcTone)}
+        </div>
+        <p class="hint">Uses the longest distance between consecutive vertical supports, not element length. Overhangs are excluded.</p>
+        <label class="label w-40" style="margin-top:1rem">
+          <span>Limit span / n</span>
+          <input class="field" type="number" min="50" max="1000" data-act="patch" data-field="deflectionLimitN" value="${esc(inputValue(mod.deflectionLimitN, 0))}">
+        </label>
+        <dl class="dl">
+          <dt>Longest span</dt><dd>${esc(formatNum(dc.longestSpan, 3))} m</dd>
+          <dt>Allowable</dt><dd>${esc(formatNum(dc.allowableMm, 2))} mm</dd>
+          <dt>Selected |δ| max</dt><dd>${esc(formatNum(dc.maxAbsMm, 3))} mm</dd>
+          <dt>Utilisation</dt><dd>${esc(formatNum(dc.utilisation, 3))}</dd>
+        </dl>
+      </section>
+    </div>
+    <section class="card">
+      <h2>All-combination envelope</h2>
+      <p class="hint">Maxima and minima of every non-zero combination at every station. Faint traces on shear, moment and deflection.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr><th>Result</th><th>Value</th><th>x (m)</th><th>Governing</th></tr></thead>
+          <tbody>${envRows}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Station results — ${esc(result.selected.name)}</h2>
+      <p class="hint">${result.stations.length} stations. Duplicate rows at a node are the left and right faces of a discontinuity. Click a row to pin.</p>
+      <div class="scroll-y">
+        <table class="data min-48 tight">
+          <thead class="sticky"><tr>
+            <th>x (m)</th><th>El</th><th>Face</th><th>V (kN)</th><th>M (kNm)</th><th>δ (mm)</th><th>θ (deg)</th><th>τ (MPa)</th><th>σ top (MPa)</th>
+          </tr></thead>
+          <tbody>${stRows}</tbody>
+        </table>
+      </div>
+    </section>
+  </div>`;
+}
+
+function renderQa(result) {
+  const tone = result.status === "OK" ? "ok" : "danger";
+  const invalid = result.invalidLoads.length
+    ? `<ul class="warn-list">${result.invalidLoads.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`
+    : "";
+  const warns = result.warnings.length
+    ? `<ul class="warn-list">${result.warnings.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`
+    : "";
+  const eqRows = result.equilibrium
+    .map(
+      (row) => `<tr>
+        <td class="mono">${esc(row.case)}</td>
+        <td class="num">${esc(formatNum(row.applied, 4))}</td>
+        <td class="num">${esc(formatNum(row.reactions, 4))}</td>
+        <td class="num">${esc(formatNum(row.residual, 6))}</td>
+        <td>${badge(row.ok ? "PASS" : "CHECK", row.ok ? "ok" : "danger")}</td>
+      </tr>`,
+    )
+    .join("");
+  const contRows = result.continuity
+    .map(
+      (c) => `<tr>
+        <td class="mono">${c.element}</td>
+        <td class="num">${esc(formatNum(c.diffMm, 9))}</td>
+        <td>${badge(c.ok ? "PASS" : "CHECK", c.ok ? "ok" : "danger")}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<div class="qa-grid">
+    <section class="card">
+      <h2>Engine status</h2>
+      <dl class="status-rows">
+        <div class="status-row"><dt>Overall</dt><dd>${badge(result.status, tone)}</dd></div>
+        <div class="status-row"><dt>Solver ready</dt><dd>${badge(result.solverReady ? "True" : "False", result.solverReady ? "ok" : "danger")}</dd></div>
+        <div class="status-row"><dt>Support stability</dt><dd>${badge(result.supportStable ? "True" : "False", result.supportStable ? "ok" : "danger")}</dd></div>
+        <div class="status-row"><dt>Invalid active loads</dt><dd>${badge(String(result.invalidLoads.length), result.invalidLoads.length ? "warn" : "ok")}</dd></div>
+        <div class="status-row"><dt>Selected combination</dt><dd><span class="mono-note" style="margin:0;color:var(--color-fg)">${esc(result.selected.name)}</span></dd></div>
+      </dl>
+      ${invalid}${warns}
+    </section>
+    <section class="card">
+      <h2>Vertical equilibrium by load case</h2>
+      <p class="hint">Applied FEA vertical load (up positive) versus support reactions.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr><th>Case</th><th>Applied (kN)</th><th>Reactions (kN)</th><th>Residual</th><th>Status</th></tr></thead>
+          <tbody>${eqRows}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Element-end displacement continuity</h2>
+      <p class="hint">Recovered Macaulay deflection at the right end of each element versus the nodal DOF.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr><th>Element</th><th>Right-end difference (mm)</th><th>Status</th></tr></thead>
+          <tbody>${contRows}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Sign conventions</h2>
+      <ul class="sign-list">
+        <li>Solver: vertical displacement up positive, rotation counter-clockwise positive.</li>
+        <li>Point loads and UDLs: downward positive in the input. Equivalent nodal loads reverse that into the FEA sign.</li>
+        <li>Point moments: counter-clockwise positive.</li>
+        <li>Bending moment: sagging positive (tension on the bottom fibre).</li>
+        <li>Slope diagrams: clockwise positive (= −θ_ccw · 180/π).</li>
+        <li>Support reactions: vertical upward positive, moment counter-clockwise positive.</li>
+        <li>Top-fibre stress: −M/Z. Bottom-fibre stress: +M/Z.</li>
+      </ul>
+    </section>
+    <section class="card span-2">
+      <h2>Scope and limitations</h2>
+      <ul class="scope-list">
+        <li>Linear-elastic Euler–Bernoulli beam finite-element analysis. No shear deformation in the stiffness.</li>
+        <li>Capacity: up to 24 sequential elements and 25 nodes. Supports: Free, Pinned, Roller, Fixed.</li>
+        <li>Interior point loads, moments and partial UDLs recovered with equivalent nodal loading and exact Macaulay terms.</li>
+        <li>No plasticity, second-order effects, lateral-torsional buckling, or uplift/contact nonlinearity.</li>
+        <li>Section library: nominal IPE properties (EN 10365). Verify against the project-approved source before design use.</li>
+        <li>Deflection check uses the longest distance between consecutive vertical supports, not element length.</li>
+        <li>Combination factors remain the user’s design-basis responsibility.</li>
+      </ul>
+    </section>
+  </div>`;
+}
+
+function panelHtml(mod, result) {
+  if (ui.tab === "geometry") return renderGeometry(mod, result);
+  if (ui.tab === "loads") return renderLoads(mod, result);
+  if (ui.tab === "combos") return renderCombos(mod);
+  if (ui.tab === "qa") return renderQa(result);
+  return renderResults(mod, result);
+}
+
+function loadLegend(mod, result) {
+  const loads = mod.loads.filter((l) => l.active && Number.isFinite(l.magnitude) && l.magnitude !== 0);
+  if (!loads.length) return "";
+  const items = loads
+    .map((ld) => {
+      const u = ld.type === "UDL" ? " kN/m" : ld.type === "Moment" ? " kNm" : " kN";
+      return `<span>${esc(ld.id)} ${esc(ld.case)} ${esc(ld.type)} ${esc(formatNum(ld.magnitude, 3))}${u}</span>`;
+    })
+    .join("");
+  const rx = result.reactions.length ? `<span class="subtle">Reactions ↑ kN under supports</span>` : "";
+  return `<div class="load-legend">${items}${rx}</div>`;
+}
+
+function statusTone(result) {
+  if (result.status === "OK") return "ok";
+  if (result.ok) return "warn";
+  return "danger";
+}
+
+function factorsLine(result) {
+  const bits = LOAD_CASES.filter((k) => (result.selected.factors[k] ?? 0) !== 0).map(
+    (k) => `${formatNum(result.selected.factors[k], 2)} ${k}`,
+  );
+  return bits.join(" + ") || "zero factors";
+}
+
+function render() {
+  const result = analyze(model);
+  const tabs = TABS.map(
+    (t) => `<button class="tab${ui.tab === t.id ? " active" : ""}" type="button" data-act="tab" data-tab="${t.id}">${esc(t.label)}</button>`,
+  ).join("");
+  const comboOpts = options(
+    model.combinations.map((c) => ({ value: c.id, label: c.name })),
+    model.selectedComboId,
+  );
+  document.getElementById("app").innerHTML = `
+    <header class="header">
+      <div class="wrap header-inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M7 12v5M12 12v5M17 12v5" stroke="currentColor" stroke-width="1.3" opacity="0.75"/>
+              <path d="M7 17.5 5.2 20h3.6L7 17.5zM12 17.5 10.2 20h3.6L12 17.5zM17 17.5 15.2 20h3.6L17 17.5z" fill="currentColor"/>
+              <path d="M5 9.2c2.2-2.8 5-4 9-4s6.8 1.2 9 4" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+            </svg>
+          </div>
+          <div>
+            <p class="brand-title">CBA</p>
+            <p class="brand-sub">Continuous Beam Analysis · Lumax Energy</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          ${badge(result.status, statusTone(result))}
+          <select class="sel sm w-36" data-act="patch" data-field="selectedComboId" aria-label="Selected combination">${comboOpts}</select>
+          <button class="btn hide-sm" type="button" data-act="preset" data-preset="example">${iconReset()} Example</button>
+          <button class="btn hide-sm" type="button" data-act="preset" data-preset="three">3-span</button>
+          <select class="sel sm w-preset show-sm" data-act="preset-select" aria-label="Load a preset">
+            <option value="" selected disabled>Presets</option>
+            <option value="example">12-span example</option>
+            <option value="three">3-span floor</option>
+          </select>
+          <button class="btn hide-sm" type="button" data-act="import">${iconUpload()} Import</button>
+          <button class="btn hide-sm" type="button" data-act="export-json">${iconDownload()} JSON</button>
+          <button class="btn primary" type="button" data-act="export-csv">${iconDownload()} CSV</button>
+        </div>
+      </div>
+    </header>
+    <main class="wrap main">
+      <p class="kicker">Selected combination</p>
+      <h1 class="page-title">${esc(result.selected.name)}</h1>
+      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · I default ${esc(formatNum(model.customI, 0))} mm⁴ · ${esc(factorsLine(result))}</p>
+      <div class="schematic">${schematicSvg(model, result)}${loadLegend(model, result)}</div>
+      <nav class="tabs-wrap" aria-label="Sections"><div class="tabs">${tabs}</div></nav>
+      <div class="panel">${panelHtml(model, result)}</div>
+      <footer class="foot"><span>Analysis only. Confirm section properties, load factors, strength, stability, buckling, support behaviour and serviceability independently before design use.</span><span class="foot-brand">Lumax Energy · CBA</span></footer>
+    </main>
+    <input class="file-input" id="import-file" type="file" accept="application/json">
+  `;
+  bindDiagrams(result);
+}
+
+function bindDiagrams(result) {
+  const combos = model.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+  const catalog = {
+    V: { points: seriesFrom(result, "V"), unit: "kN" },
+    M: { points: seriesFrom(result, "M"), unit: "kNm" },
+    v: { points: seriesFrom(result, "v"), unit: "mm" },
+    slope: { points: seriesFrom(result, "slopeDeg"), unit: "deg" },
+    tau: { points: seriesFrom(result, "tau"), unit: "MPa" },
+    sigma: { points: seriesFrom(result, "sigmaTop"), unit: "MPa" },
+  };
+  document.querySelectorAll("[data-diagram-svg]").forEach((svg) => {
+    const id = svg.getAttribute("data-diagram-svg");
+    const spec = catalog[id];
+    if (!spec || !spec.points.length) return;
+    const W = 920;
+    const padL = 52;
+    const padR = 16;
+    const innerW = W - padL - padR;
+    const L = Math.max(spec.points[spec.points.length - 1].x, 1e-6);
+    const pick = (ev) => {
+      const rect = svg.getBoundingClientRect();
+      const px = ((ev.clientX - rect.left) / rect.width) * W;
+      const x = ((px - padL) / innerW) * L;
+      if (x < 0 || x > L) return null;
+      return nearest(spec.points, x);
+    };
+    svg.addEventListener("mousemove", (ev) => {
+      const p = pick(ev);
+      ui.hover[id] = p ? { x: p.x, y: p.y } : null;
+      const read = svg.closest(".diagram")?.querySelector("[data-readout]");
+      if (read && p) read.textContent = `x ${formatNum(p.x, 3)} m · ${formatNum(p.y, 3)} ${spec.unit}`;
+    });
+    svg.addEventListener("mouseleave", () => {
+      ui.hover[id] = null;
+    });
+    svg.addEventListener("click", (ev) => {
+      const p = pick(ev);
+      if (p) {
+        ui.probeX = p.x;
+        render();
+      }
+    });
+  });
+  void combos;
+}
+
+function setModel(next) {
+  model = resizeElements(next, next.nElements);
+  persist();
+  ui.probeX = null;
+  render();
+}
+
+function patch(partial) {
+  let next = { ...model, ...partial };
+  if (partial.nElements !== undefined) next = resizeElements(next, partial.nElements);
+  model = next;
+  persist();
+  render();
+}
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function downloadBlob(content, type, name) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportJson() {
+  downloadBlob(JSON.stringify(model, null, 2), "application/json", "cba-model.json");
+}
+
+function exportCsv() {
+  const result = analyze(model);
+  const lines = ["x_m,V_kN,M_kNm,defl_mm,slope_deg,tau_MPa,sigma_top_MPa,sigma_bot_MPa"];
+  for (let i = 0; i < result.stations.length; i++) {
+    lines.push(
+      [
+        result.stations[i].x,
+        result.selected.V[i],
+        result.selected.M[i],
+        result.selected.v[i],
+        result.selected.slopeDeg[i],
+        result.selected.tau[i],
+        result.selected.sigmaTop[i],
+        result.selected.sigmaBot[i],
+      ].join(","),
+    );
+  }
+  downloadBlob(lines.join("\n"), "text/csv", `cba-${result.selected.name.replace(/\s+/g, "_")}.csv`);
+}
+
+function importJsonFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result));
+      if (parsed && Array.isArray(parsed.elements)) setModel(parsed);
+    } catch {
+      /* ignore */
+    }
+  };
+  reader.readAsText(file);
+}
+
+function onClick(ev) {
+  const t = ev.target.closest("[data-act]");
+  if (!t) return;
+  const act = t.getAttribute("data-act");
+  if (act === "tab") {
+    ui.tab = t.getAttribute("data-tab");
+    render();
+  } else if (act === "preset") {
+    const p = t.getAttribute("data-preset");
+    setModel(p === "three" ? simpleThreeSpan() : excelExample());
+  } else if (act === "import") {
+    document.getElementById("import-file")?.click();
+  } else if (act === "export-json") {
+    exportJson();
+  } else if (act === "export-csv") {
+    exportCsv();
+  } else if (act === "add-span") {
+    patch({ nElements: Math.min(24, model.nElements + 1) });
+  } else if (act === "add-load") {
+    const loads = model.loads.slice();
+    loads.push({ ...blankLoad(loads.length + 1), active: true });
+    patch({ loads });
+  } else if (act === "remove-load") {
+    const i = Number(t.getAttribute("data-index"));
+    patch({ loads: model.loads.filter((_, j) => j !== i) });
+  } else if (act === "probe") {
+    ui.probeX = Number(t.getAttribute("data-x"));
+    render();
+  } else if (act === "clear-probe") {
+    ui.probeX = null;
+    render();
+  } else if (act === "select-combo") {
+    if (ev.target.closest("input,select,button")) return;
+    patch({ selectedComboId: t.getAttribute("data-id") });
+  }
+}
+
+function onChange(ev) {
+  const t = ev.target;
+  if (!(t instanceof HTMLElement)) return;
+  const act = t.getAttribute("data-act");
+  if (!act) return;
+  if (act === "patch") {
+    const field = t.getAttribute("data-field");
+    const raw = t.value;
+    const numeric = ["nElements", "customE", "customDensity", "customI", "customZ", "customA", "customAv", "stationsPerElement", "deflectionLimitN"].includes(field);
+    patch({ [field]: numeric ? num(raw) : raw });
+  } else if (act === "patch-bool") {
+    patch({ [t.getAttribute("data-field")]: t.checked });
+  } else if (act === "default-section") {
+    const name = t.value;
+    const els = model.elements.map((el) => (el.section === model.defaultSection ? { ...el, section: name } : el));
+    patch({ defaultSection: name, elements: els });
+  } else if (act === "element") {
+    const i = Number(t.getAttribute("data-index"));
+    const field = t.getAttribute("data-field");
+    const value = field === "length" ? num(t.value) : t.value;
+    const elements = model.elements.map((el, j) => (j === i ? { ...el, [field]: value } : el));
+    patch({ elements });
+  } else if (act === "support") {
+    const i = Number(t.getAttribute("data-index"));
+    const supports = model.supports.slice();
+    supports[i] = t.value;
+    patch({ supports });
+  } else if (act === "load") {
+    const i = Number(t.getAttribute("data-index"));
+    const field = t.getAttribute("data-field");
+    let value;
+    if (t.getAttribute("data-type") === "bool") value = t.checked;
+    else if (["x1", "x2", "magnitude"].includes(field)) value = num(t.value);
+    else value = t.value;
+    const loads = model.loads.map((ld, j) => (j === i ? { ...ld, [field]: value } : ld));
+    patch({ loads });
+  } else if (act === "show-inactive") {
+    ui.showInactive = t.checked;
+    render();
+  } else if (act === "combo-field") {
+    const id = t.getAttribute("data-id");
+    const field = t.getAttribute("data-field");
+    const combinations = model.combinations.map((c) => (c.id === id ? { ...c, [field]: t.value } : c));
+    patch({ combinations });
+  } else if (act === "combo-factor") {
+    const id = t.getAttribute("data-id");
+    const factor = t.getAttribute("data-factor");
+    const combinations = model.combinations.map((c) =>
+      c.id === id ? { ...c, factors: { ...c.factors, [factor]: num(t.value) } } : c,
+    );
+    patch({ combinations });
+  } else if (act === "preset-select") {
+    if (t.value === "example") setModel(excelExample());
+    if (t.value === "three") setModel(simpleThreeSpan());
+    t.value = "";
+  }
+}
+
+document.addEventListener("click", onClick);
+document.addEventListener("change", onChange);
+document.addEventListener("change", (ev) => {
+  if (ev.target && ev.target.id === "import-file" && ev.target.files?.[0]) {
+    importJsonFile(ev.target.files[0]);
+    ev.target.value = "";
+  }
+});
+
+hydrate();
+render();
+
+  </script>
+</body>
+</html>
