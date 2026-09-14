@@ -452,16 +452,16 @@ function id(prefix, n) {
 }
 
 const DEFAULT_COMBINATIONS = [
-  { id: "c1", name: "G+Q1", class: "Service", factors: { G: 1.2, Q1: 1.6, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Unfactored service combination" },
-  { id: "c2", name: "G+Q2", class: "Service", factors: { G: 1.2, Q1: 0, Q2: 1.6, "W+": 0, "W-": 0, O: 0 }, notes: "Unfactored service combination" },
-  { id: "c3", name: "G+Q1+Q2", class: "Service", factors: { G: 1.2, Q1: 1.6, Q2: 1.5, "W+": 0, "W-": 0, O: 0 }, notes: "Edit accompanying-action factors as required" },
-  { id: "c4", name: "G+W+", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 1.6, "W-": 0, O: 0 }, notes: "Positive wind case" },
-  { id: "c5", name: "G+W-", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 1.6, O: 0 }, notes: "Negative wind case" },
-  { id: "c6", name: "G+O", class: "Service", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 1 }, notes: "Other action" },
-  { id: "c7", name: "G only", class: "Single case", factors: { G: 1.35, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Permanent / self-weight only" },
-  { id: "c8", name: "Q1 only", class: "Single case", factors: { G: 0, Q1: 1, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q1 only" },
-  { id: "c9", name: "Q2 only", class: "Single case", factors: { G: 0, Q1: 0, Q2: 1, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q2 only" },
-  { id: "c10", name: "USER-01", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
+  { id: "c1", name: "G+Q1", class: "Strength", factors: { G: 1.2, Q1: 1.6, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "FACTORED — confirm against the project design basis" },
+  { id: "c2", name: "G+Q2", class: "Strength", factors: { G: 1.2, Q1: 0, Q2: 1.6, "W+": 0, "W-": 0, O: 0 }, notes: "FACTORED — confirm against the project design basis" },
+  { id: "c3", name: "G+Q1+Q2", class: "Strength", factors: { G: 1.2, Q1: 1.6, Q2: 1.5, "W+": 0, "W-": 0, O: 0 }, notes: "FACTORED — Q2 reduced as an accompanying action; edit as required" },
+  { id: "c4", name: "G+W+", class: "Strength", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 1.6, "W-": 0, O: 0 }, notes: "FACTORED — positive wind case" },
+  { id: "c5", name: "G+W-", class: "Strength", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 1.6, O: 0 }, notes: "FACTORED — negative wind case" },
+  { id: "c6", name: "G+O", class: "Strength", factors: { G: 1.0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 1 }, notes: "Other action, unfactored as shipped" },
+  { id: "c7", name: "G only", class: "Single case", factors: { G: 1.35, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "FACTORED — permanent / self-weight only" },
+  { id: "c8", name: "Q1 only", class: "Single case", factors: { G: 0, Q1: 1, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q1 only, unfactored" },
+  { id: "c9", name: "Q2 only", class: "Single case", factors: { G: 0, Q1: 0, Q2: 1, "W+": 0, "W-": 0, O: 0 }, notes: "Variable case Q2 only, unfactored" },
+  { id: "c10", name: "SLS G+Q1", class: "Serviceability", factors: { G: 1.0, Q1: 1.0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Unfactored — select this one for the deflection check" },
   { id: "c11", name: "USER-02", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
   { id: "c12", name: "USER-03", class: "User", factors: { G: 0, Q1: 0, Q2: 0, "W+": 0, "W-": 0, O: 0 }, notes: "Edit factors" },
 ];
@@ -666,21 +666,25 @@ function argExtrema(values) {
   }
   return { imax, imin };
 }
-function macaulay(el, c, x, wSelf, includeSW) {
+function macaulay(el, c, x, wSelf, includeSW, rightLimit) {
   let dV = 0, dM = 0, dS = 0, dD = 0;
+  // rightLimit = true evaluates the limit from inside the element, so a point load or
+  // moment sitting exactly at x is included. Used at the very start of the beam, where
+  // there is no preceding element to carry the other face of the discontinuity.
+  const past = rightLimit ? (a) => x >= a : (a) => x > a;
   for (const m of el.mapped) {
     if (m.load.case !== c) continue;
     const r1 = Math.max(x - m.a, 0);
     const r2 = Math.max(x - m.b, 0);
     if (m.load.type === "Point") {
       const P = m.load.magnitude * 1000;
-      if (x > m.a) dV += -P;
+      if (past(m.a)) dV += -P;
       dM += -P * r1;
       dS += (-P * r1 * r1) / 2;
       dD += (-P * r1 * r1 * r1) / 6;
     } else if (m.load.type === "Moment") {
       const M = m.load.magnitude * 1000;
-      if (x > m.a) dM += -M;
+      if (past(m.a)) dM += -M;
       dS += -M * r1;
       dD += (-M * r1 * r1) / 2;
     } else {
@@ -736,9 +740,19 @@ function analyze(model) {
   const supportStable = nVert >= 2 || nFixed >= 1;
   const warnings = [];
   if (totalLength <= 0) warnings.push("Total beam length is zero.");
+  if (model.nElements > 24) warnings.push(`Model declares ${model.nElements} elements; only the first 24 are analysed.`);
   for (let i = 0; i < nEl; i++) {
     if ((elements[i]?.length ?? 0) <= 0) warnings.push(`Element ${i + 1} has non-positive length.`);
     if (sectionAt[i].I <= 0) warnings.push(`Element ${i + 1} has I ≤ 0.`);
+    if (sectionAt[i].Z <= 0) warnings.push(`Element ${i + 1} has Z ≤ 0 — bending stress is reported as zero there.`);
+    if (sectionAt[i].Av <= 0) warnings.push(`Element ${i + 1} has Av ≤ 0 — shear stress is reported as zero there.`);
+  }
+  for (const ld of model.loads) {
+    if (!ld.active || !Number.isFinite(ld.magnitude) || ld.magnitude === 0) continue;
+    if (ld.type !== "UDL") continue;
+    if (ld.x1 < -1e-9 || ld.x2 > totalLength + 1e-9) {
+      warnings.push(`${ld.id}: UDL runs from ${formatNum(ld.x1, 3)} to ${formatNum(ld.x2, 3)} m; only the part on the beam (0 to ${formatNum(totalLength, 3)} m) is applied.`);
+    }
   }
   const emptySelected = {
     id: model.selectedComboId,
@@ -752,8 +766,8 @@ function analyze(model) {
     selected: emptySelected, envelope: [],
     equilibrium: LOAD_CASES.map((c) => ({ case: c, applied: 0, reactions: 0, residual: 0, ok: true })),
     continuity: [],
-    deflectionCheck: { longestSpan: 0, limitN: model.deflectionLimitN, allowableMm: 0, maxAbsMm: 0, utilisation: 0, status: "N/A" },
-    sectionAt,
+    deflectionCheck: { longestSpan: 0, limitN: model.deflectionLimitN, allowableMm: 0, maxAbsMm: 0, utilisation: 0, spans: [], governingLabel: "—", status: "N/A" },
+    sectionAt, defaultI: resolveSection(model.defaultSection, custom).I,
   });
   if (!supportStable) return fail("UNSTABLE SUPPORTS");
   if (totalLength <= 0 || warnings.some((w) => w.includes("I ≤ 0") || w.includes("non-positive"))) return fail("INVALID GEOMETRY");
@@ -844,31 +858,32 @@ function analyze(model) {
       el.q[c] = q;
     }
   }
+  const comboById = new Map(model.combinations.map((c) => [c.id, c]));
+  const selectedCombo = comboById.get(model.selectedComboId) ?? model.combinations[0] ?? {
+    id: "none", name: "None", class: "User", factors: emptyCaseMap(0), notes: "",
+  };
+  const combos = model.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+  const refineCombos = combos.slice();
+  if (!refineCombos.some((c) => c.id === selectedCombo.id)) refineCombos.push(selectedCombo);
+
   const nStat = model.stationsPerElement;
   const stations = [];
   for (let e = 0; e < nEl; e++) {
     const el = elems[e];
-    const xiSet = Array.from({ length: nStat }, (_, i) => i / (nStat - 1));
-    for (const m of el.mapped) {
-      if (m.load.type === "UDL") {
-        if (m.a > EPS && m.a < el.L - EPS) xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
-        if (m.b > EPS && m.b < el.L - EPS) xiSet.push(m.b / el.L - 1e-12, m.b / el.L + 1e-12);
-      } else if (m.a > EPS && m.a < el.L - EPS) {
-        xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
-      }
-    }
-    const xis = uniqueSorted(xiSet.map((x) => Math.min(1, Math.max(0, x))));
     const wSelf = density * el.A * G_ACCEL;
-    xis.forEach((xi, idx) => {
+    const makeRec = (xi) => {
       const xloc = xi * el.L;
       const rec = {
-        elementIndex: e, station: idx, xi, x: el.x0 + xloc,
+        elementIndex: e, station: 0, xi, x: el.x0 + xloc,
         V: emptyCaseMap(), M: emptyCaseMap(), v: emptyCaseMap(), theta: emptyCaseMap(),
         side: xi <= EPS ? "left" : xi >= 1 - EPS ? "right" : "interior",
       };
+      // At the very start of the beam there is no element to the left, so report the
+      // limit from inside the beam; anywhere else the two faces sit on adjacent stations.
+      const rightLimit = e === 0 && xi <= EPS;
       for (const c of LOAD_CASES) {
         const q = el.q[c];
-        const { dV, dM, dS, dD } = macaulay(el, c, xloc, wSelf, model.includeSelfWeight);
+        const { dV, dM, dS, dD } = macaulay(el, c, xloc, wSelf, model.includeSelfWeight, rightLimit);
         const V = q[0] + dV;
         const M = -q[1] + q[0] * xloc + dM;
         const th0 = U[c][el.dofs[1]];
@@ -881,6 +896,69 @@ function analyze(model) {
         rec.v[c] = v * 1000;
         rec.theta[c] = th;
       }
+      return rec;
+    };
+    // Combined rotation only, skipping cases the combination does not use — this is the
+    // inner loop of the deflection-peak search, so it is worth keeping narrow.
+    const thetaAt = (xi, f) => {
+      const xloc = xi * el.L;
+      let th = 0;
+      for (const c of LOAD_CASES) {
+        const g = f[c] ?? 0;
+        if (g === 0) continue;
+        const q = el.q[c];
+        const { dS } = macaulay(el, c, xloc, wSelf, model.includeSelfWeight);
+        th += g * (U[c][el.dofs[1]] + (-q[1] * xloc + (q[0] * xloc * xloc) / 2 + dS) / (el.E * el.I));
+      }
+      return th;
+    };
+    const xiSet = Array.from({ length: nStat }, (_, i) => i / (nStat - 1));
+    for (const m of el.mapped) {
+      if (m.load.type === "UDL") {
+        if (m.a > EPS && m.a < el.L - EPS) xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
+        if (m.b > EPS && m.b < el.L - EPS) xiSet.push(m.b / el.L - 1e-12, m.b / el.L + 1e-12);
+      } else if (m.a > EPS && m.a < el.L - EPS) {
+        xiSet.push(m.a / el.L - 1e-12, m.a / el.L + 1e-12);
+      }
+    }
+    let xis = uniqueSorted(xiSet.map((x) => Math.min(1, Math.max(0, x))));
+    let recs = xis.map(makeRec);
+    // Peak refinement. Between two neighbouring stations the combined shear is linear, so
+    // its zero is the exact location of a stationary bending moment; the zero of the
+    // combined rotation is the exact location of a stationary deflection. Without these
+    // the reported extrema are only as good as the station spacing.
+    const extra = [];
+    for (const combo of refineCombos) {
+      const f = combo.factors;
+      const Vs = recs.map((r) => combine(r.V, f));
+      const Ts = recs.map((r) => combine(r.theta, f));
+      for (let i = 0; i + 1 < recs.length; i++) {
+        const xa = recs[i].xi;
+        const xb = recs[i + 1].xi;
+        if (xb - xa < 1e-9) continue;
+        if ((Vs[i] > 0 && Vs[i + 1] < 0) || (Vs[i] < 0 && Vs[i + 1] > 0)) {
+          const t = Vs[i] / (Vs[i] - Vs[i + 1]);
+          if (t > 0 && t < 1) extra.push(xa + t * (xb - xa));
+        }
+        if ((Ts[i] > 0 && Ts[i + 1] < 0) || (Ts[i] < 0 && Ts[i + 1] > 0)) {
+          let lo = xa, hi = xb, flo = Ts[i];
+          for (let k = 0; k < 30; k++) {
+            const mid = (lo + hi) / 2;
+            const fm = thetaAt(mid, f);
+            if (fm === 0) { lo = mid; hi = mid; break; }
+            if (flo < 0 === fm < 0) { lo = mid; flo = fm; } else hi = mid;
+          }
+          const t = (lo + hi) / 2;
+          if (t > xa && t < xb) extra.push(t);
+        }
+      }
+    }
+    if (extra.length) {
+      xis = uniqueSorted(xis.concat(extra.filter((t) => t > EPS && t < 1 - EPS)));
+      recs = xis.map(makeRec);
+    }
+    recs.forEach((rec, idx) => {
+      rec.station = idx;
       stations.push(rec);
     });
   }
@@ -903,10 +981,6 @@ function analyze(model) {
     const residual = applied + react;
     return { case: c, applied, reactions: react, residual, ok: Math.abs(residual) <= 1e-4 * (1 + Math.abs(applied)) };
   });
-  const comboById = new Map(model.combinations.map((c) => [c.id, c]));
-  const selectedCombo = comboById.get(model.selectedComboId) ?? model.combinations[0] ?? {
-    id: "none", name: "None", class: "User", factors: emptyCaseMap(0), notes: "",
-  };
   const continuity = elems.map((el) => {
     let vRec = 0, vNod = 0;
     for (const c of LOAD_CASES) {
@@ -968,7 +1042,6 @@ function analyze(model) {
     ext("Maximum average shear stress", tau, "max", "MPa"),
     ext("Maximum absolute bending stress", sigmaTop.map((t, i) => Math.max(Math.abs(t), Math.abs(sigmaBot[i]))), "max", "MPa"),
   ];
-  const combos = model.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
   const envVmax = [], envVmin = [], envMmax = [], envMmin = [];
   const envVmaxC = [], envVminC = [], envMmaxC = [], envMminC = [];
   const envVup = [], envVdn = [], envVupC = [], envVdnC = [], envSig = [], envSigC = [];
@@ -1018,9 +1091,41 @@ function analyze(model) {
   });
   let longestSpan = 0;
   for (let i = 1; i < verticalXs.length; i++) longestSpan = Math.max(longestSpan, verticalXs[i] - verticalXs[i - 1]);
-  const maxAbsMm = vsel.length ? Math.max(...vsel.map((v) => Math.abs(v))) : 0;
-  const allowableMm = longestSpan > 0 && model.deflectionLimitN > 0 ? (longestSpan * 1000) / model.deflectionLimitN : 0;
-  const utilisation = allowableMm > 0 ? maxAbsMm / allowableMm : 0;
+  // Each span is checked against its own length. Comparing the worst deflection anywhere
+  // on the beam against the longest span mixes up unrelated quantities: an overhang tip
+  // would be judged against a span it has nothing to do with.
+  const segments = [];
+  for (let i = 1; i < verticalXs.length; i++) {
+    segments.push({ kind: "Span", x0: verticalXs[i - 1], x1: verticalXs[i] });
+  }
+  if (verticalXs.length) {
+    const first = verticalXs[0];
+    const last = verticalXs[verticalXs.length - 1];
+    if (first > EPS) segments.push({ kind: "Cantilever", x0: 0, x1: first });
+    if (last < totalLength - EPS) segments.push({ kind: "Cantilever", x0: last, x1: totalLength });
+  }
+  const spanChecks = segments
+    .map((seg) => {
+      const len = seg.x1 - seg.x0;
+      let peak = 0;
+      let peakX = seg.x0;
+      for (let i = 0; i < stations.length; i++) {
+        const x = stations[i].x;
+        if (x < seg.x0 - 1e-9 || x > seg.x1 + 1e-9) continue;
+        if (Math.abs(vsel[i]) > Math.abs(peak)) { peak = vsel[i]; peakX = x; }
+      }
+      const allow = len > 0 && model.deflectionLimitN > 0 ? (len * 1000) / model.deflectionLimitN : 0;
+      return {
+        kind: seg.kind, x0: seg.x0, x1: seg.x1, length: len,
+        maxAbsMm: Math.abs(peak), peakMm: peak, peakX, allowableMm: allow,
+        utilisation: allow > 0 ? Math.abs(peak) / allow : 0,
+      };
+    })
+    .sort((a, b) => a.x0 - b.x0);
+  const governing = spanChecks.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
+  const maxAbsMm = governing ? governing.maxAbsMm : 0;
+  const allowableMm = governing ? governing.allowableMm : 0;
+  const utilisation = governing ? governing.utilisation : 0;
   const status = invalidLoads.length > 0 ? "INVALID LOAD INPUT" : equilibrium.every((e) => e.ok) ? "OK" : "EQUILIBRIUM CHECK";
   return {
     ok: status === "OK" || status === "INVALID LOAD INPUT",
@@ -1031,8 +1136,13 @@ function analyze(model) {
       V: Vsel, M: Msel, v: vsel, slopeDeg: thsel, tau, sigmaTop, sigmaBot, extrema,
     },
     envelope, equilibrium, continuity,
-    deflectionCheck: { longestSpan, limitN: model.deflectionLimitN, allowableMm, maxAbsMm, utilisation, status: allowableMm <= 0 ? "N/A" : utilisation <= 1 ? "PASS" : "FAIL" },
-    sectionAt,
+    deflectionCheck: {
+      longestSpan, limitN: model.deflectionLimitN, allowableMm, maxAbsMm, utilisation,
+      spans: spanChecks,
+      governingLabel: governing ? `${governing.kind} ${formatNum(governing.x0, 3)}–${formatNum(governing.x1, 3)} m` : "—",
+      status: allowableMm <= 0 ? "N/A" : utilisation <= 1 ? "PASS" : "FAIL",
+    },
+    sectionAt, defaultI: resolveSection(model.defaultSection, custom).I,
   };
 }
 
@@ -1349,7 +1459,11 @@ function forceDiagramHtml(id, title, unit, color, points, nodeX, envelopeMax, en
 }
 
 function renderGeometry(mod, result) {
-  const isCustom = mod.defaultSection === "Custom";
+  // The custom properties are used by any element set to "Custom", not just when it is
+  // the default, so the fields must stay editable in that case too.
+  const isCustom =
+    mod.defaultSection === "Custom" ||
+    mod.elements.slice(0, mod.nElements).some((el) => (el.section || mod.defaultSection) === "Custom");
   const eVal = mod.material === "Custom" ? mod.customE : result.E;
   const dVal = mod.material === "Custom" ? mod.customDensity : result.density;
   const rows = mod.elements
@@ -1572,6 +1686,19 @@ function renderResults(mod, result) {
 
   const dcTone = dc.status === "PASS" ? "ok" : dc.status === "FAIL" ? "danger" : "muted";
 
+  const deflRows = (dc.spans ?? [])
+    .map((s) => {
+      const gov = s === dc.spans.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
+      return `<tr class="clickable${gov ? " on" : ""}" data-act="probe" data-x="${s.peakX}">
+        <td>${esc(s.kind)} ${esc(formatNum(s.x0, 2))}–${esc(formatNum(s.x1, 2))}</td>
+        <td class="num">${esc(formatNum(s.length, 3))}</td>
+        <td class="num">${esc(formatNum(s.peakMm, 3))}</td>
+        <td class="num">${esc(formatNum(s.allowableMm, 2))}</td>
+        <td class="num">${esc(formatNum(s.utilisation, 3))}</td>
+      </tr>`;
+    })
+    .join("");
+
   return `<div class="space-y">
     <div class="extrema">${cards}</div>
     ${pin}
@@ -1597,17 +1724,18 @@ function renderResults(mod, result) {
           <h2>Deflection check</h2>
           ${badge(dc.status, dcTone)}
         </div>
-        <p class="hint">Uses the longest distance between consecutive vertical supports, not element length. Overhangs are excluded.</p>
+        <p class="hint">Each span between consecutive vertical supports is checked against its own length. Overhangs are checked separately against the overhang length — confirm that convention suits the project. Deflections are those of the selected combination, so select an unfactored serviceability combination for this check to mean anything.</p>
         <label class="label w-40" style="margin-top:1rem">
           <span>Limit span / n</span>
           <input class="field" type="number" min="50" max="1000" data-act="patch" data-field="deflectionLimitN" value="${esc(inputValue(mod.deflectionLimitN, 0))}">
         </label>
-        <dl class="dl">
-          <dt>Longest span</dt><dd>${esc(formatNum(dc.longestSpan, 3))} m</dd>
-          <dt>Allowable</dt><dd>${esc(formatNum(dc.allowableMm, 2))} mm</dd>
-          <dt>Selected |δ| max</dt><dd>${esc(formatNum(dc.maxAbsMm, 3))} mm</dd>
-          <dt>Utilisation</dt><dd>${esc(formatNum(dc.utilisation, 3))}</dd>
-        </dl>
+        <div class="scroll">
+          <table class="data tight">
+            <thead><tr><th>Segment</th><th>L (m)</th><th>δ (mm)</th><th>Allowable</th><th>Util.</th></tr></thead>
+            <tbody>${deflRows}</tbody>
+          </table>
+        </div>
+        <p class="mono-note">Governing: ${esc(dc.governingLabel)} · utilisation ${esc(formatNum(dc.utilisation, 3))}</p>
       </section>
     </div>
     <section class="card">
@@ -1801,7 +1929,7 @@ function render() {
     <main class="wrap main">
       <p class="kicker">Selected combination</p>
       <h1 class="page-title">${esc(result.selected.name)}</h1>
-      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · I default ${esc(formatNum(model.customI, 0))} mm⁴ · ${esc(factorsLine(result))}</p>
+      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · default section ${esc(model.defaultSection)}, I = ${esc(formatNum(result.defaultI, 0))} mm⁴ · ${esc(factorsLine(result))}</p>
       <div class="schematic">${schematicSvg(model, result)}${loadLegend(model, result)}</div>
       <nav class="tabs-wrap" aria-label="Sections"><div class="tabs">${tabs}</div></nav>
       <div class="panel">${panelHtml(model, result)}</div>

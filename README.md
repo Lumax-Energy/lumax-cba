@@ -7,3 +7,5 @@ Offline Euler–Bernoulli continuous beam analysis for Lumax Energy.
 Single-page app — open `index.html` or use GitHub Pages above.
 
 Formerly Spanline; renamed to **CBA**.
+
+See `VERIFICATION.md` for the validation record and the list of corrections applied.
