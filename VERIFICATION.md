@@ -116,3 +116,55 @@ project design basis before use.
 - Self-weight uses ρ·A rather than the catalogue mass per metre. The difference is under
   0.2 % and ρ·A is the only option available for custom sections.
 - The 24-element limit is unchanged; it is now reported rather than silent.
+
+## All-combinations view (added)
+
+The selected-combination dropdown, the Combinations tab and a new toggle at the top of the
+Results tab all offer **All combinations**. In that view every combination with a non-zero
+factor is drawn on the shear, moment, deflection, slope, shear-stress and bending-stress
+diagrams at once, one colour per combination, with the envelope as a faint band behind them.
+Hovering a diagram lists every combination's value at that station; clicking pins it. Below
+the diagrams: the governing value of each extremum and which combination produces it,
+extrema per combination, support reactions per combination with max / min, the deflection
+check per combination, and the station table for any one quantity across all combinations.
+Combinations can be hidden from the legend or with the Plot column on the Combinations tab;
+when any are hidden, a warning above the governing values says so. CSV export in this view
+writes every shown combination in long format, with element and face columns so the two
+rows at a node stay distinct. On the schematic, each support shows the largest reaction over
+the smallest across the shown combinations.
+
+**How it was checked.** The per-combination results come from the same function that
+produces the selected-combination results, so the two views cannot disagree.
+`test/06-all-combinations.js` confirms it: for both presets and 150 random models, each of
+1,558 combination results is identical, value for value, to what the single view reports
+when that combination is selected. Engine tests `01`–`04` and the UI test `05` produce the
+same output as before the change. The view was then reviewed independently (engine
+equivalence, UI state and edge cases, pointer mapping and layout at desktop and phone
+widths, engineering presentation, performance), and every confirmed finding was fixed. The
+fixes were re-checked against the reviewers' own reproductions, in jsdom (`06`) and, for
+scrolling, focus, resizing and pointer mapping, which jsdom cannot see, in real Chrome.
+
+Fixed along the way, affecting both views:
+
+- On screens wider than about 950 px the diagrams are centred with blank margins, but hover
+  and click positions were scaled by the full element width, so near the ends of the beam the
+  pinned station was off by up to a fifth of the beam length (correct only at midspan).
+  Pointer positions now account for the margins.
+- On a phone the Results tab scrolled sideways because a wide table stretched the whole
+  column. Wide tables now scroll inside their own card.
+- On a phone the diagrams drew as a thin strip with unreadable labels. Below 640 px they are
+  now laid out on a narrower canvas that fills the width. Rotating the phone redraws only
+  the diagrams, so a field being typed in and the scroll position are kept.
+- Pinning a station re-rendered the page and could move the diagram that was clicked; the
+  clicked block now stays where it was, and the tables keep their scroll position, down and
+  across.
+- Toggling a button, select or checkbox from the keyboard sent focus back to the top of the
+  page; focus now stays on that control.
+- The station tables are skipped by the browser's layout while off screen. On the largest
+  model the program allows (24 elements, 51 stations each, 12 combinations) a re-render
+  went from about 350 ms to about 170 ms in the all-combinations view and from about 260 ms
+  to 130 ms in the single view. Clicking a row of the station table itself is still slow on
+  that model (about half a second), because the table is on screen and has to be laid out.
+- A hand-edited file with a missing, numeric or repeated combination id could make two
+  rows share a result, colour or selection. Ids are now made unique when a file is loaded.
+- Tiny negative values were displayed as `-0`; they now read `0`.

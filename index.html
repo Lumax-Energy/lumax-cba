@@ -31,6 +31,16 @@
   --color-moment: #e0a86a;
   --color-defl: #7dba8f;
   --color-beam: #d7e3ef;
+  /* Combination series, in this fixed order. Validated as a set against --color-inset
+     (lightness band, chroma, adjacent CVD and normal-vision separation, 3:1 contrast). */
+  --combo-1: #3987e5;
+  --combo-2: #d95926;
+  --combo-3: #199e70;
+  --combo-4: #c98500;
+  --combo-5: #d55181;
+  --combo-6: #008300;
+  --combo-7: #9085e9;
+  --combo-8: #e66767;
   --lumax-blue: #1B7AC7;
   --lumax-blue-soft: #48a0e0;
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
@@ -202,6 +212,8 @@ table { border-collapse: collapse; }
 .row-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
 .scroll { margin-top: 0.75rem; overflow-x: auto; }
 .scroll-y { margin-top: 0.75rem; max-height: 20rem; overflow: auto; }
+/* The station tables run to thousands of rows; skip laying them out while off screen. */
+.scroll-y { content-visibility: auto; contain-intrinsic-size: auto 20rem; }
 .data { width: 100%; font-size: 0.75rem; }
 .data th {
   text-align: left; font-weight: 500; color: var(--color-subtle); padding: 0 0.5rem 0.5rem 0;
@@ -230,6 +242,8 @@ table { border-collapse: collapse; }
 .legend-list .k { font-family: var(--font-mono); font-size: 0.75rem; }
 .opacity-50 { opacity: 0.5; }
 .space-y { display: grid; gap: 1rem; }
+/* Let wide tables scroll inside their card instead of stretching the whole column. */
+.space-y > * { min-width: 0; }
 
 .extrema { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .extrema { grid-template-columns: 1fr 1fr; } }
@@ -334,6 +348,63 @@ table { border-collapse: collapse; }
 
 .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+.viewbar { display: grid; gap: 0.75rem; }
+.seg {
+  display: inline-flex; gap: 0.25rem; padding: 0.25rem;
+  border-radius: var(--radius-md); background: var(--color-inset); box-shadow: var(--shadow-border);
+}
+.seg button {
+  min-height: 36px; border: 0; border-radius: var(--radius-xs); padding: 0 0.875rem;
+  font-size: 0.8125rem; font-weight: 500; background: transparent; color: var(--color-muted);
+  transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.seg button:hover { color: var(--color-fg); }
+.seg button.on {
+  background: color-mix(in oklab, var(--lumax-blue) 22%, var(--color-elevated));
+  color: var(--color-fg); box-shadow: inset 0 -2px 0 var(--lumax-blue-soft);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.5rem; min-height: 32px; padding: 0 0.75rem;
+  border: 0; border-radius: 999px; background: var(--color-inset); box-shadow: var(--shadow-border);
+  font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-fg);
+  transition: box-shadow 150ms var(--ease), opacity 150ms var(--ease);
+}
+.chip:hover { box-shadow: var(--shadow-border-hover); }
+.chip[aria-pressed="false"] { color: var(--color-subtle); text-decoration: line-through; }
+.chip[aria-pressed="false"] .key { opacity: 0.3; }
+.key { display: block; flex-shrink: 0; width: 20px; height: 8px; }
+.key-inline { display: inline-flex; align-items: center; gap: 0.4rem; }
+.diagram.multi svg { height: 13rem; }
+/* Matches diagramWidth(): below 640 px the drawings are 460 wide, sized to fill the width. */
+@media (max-width: 639.98px) {
+  .diagram svg { height: auto; aspect-ratio: 460 / 168; }
+  .diagram.multi svg { height: auto; aspect-ratio: 460 / 208; }
+}
+.diagram.multi .series { transition: opacity 120ms var(--ease); }
+.diagram.multi.has-hl .series { opacity: 0.12; }
+.diagram.multi.has-hl .series.hl { opacity: 1; }
+.mtip {
+  position: fixed; z-index: 50; pointer-events: none; min-width: 12rem; max-width: 18rem;
+  padding: 0.5rem 0.625rem; border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--color-elevated) 96%, transparent);
+  box-shadow: var(--shadow-border), 0 10px 28px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mono); font-size: var(--text-2xs); font-variant-numeric: tabular-nums;
+}
+.mtip[hidden] { display: none; }
+.mtip .t { color: var(--color-subtle); margin-bottom: 0.25rem; }
+.mtip .r { display: flex; align-items: center; gap: 0.5rem; line-height: 1.6; }
+.mtip .r b { font-weight: 500; color: var(--color-fg); min-width: 4.5rem; text-align: right; }
+.mtip .r span { color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.data td.gov { color: var(--color-accent); font-weight: 500; }
+.data td.pick { cursor: pointer; }
+.data td.pick:hover { background: var(--color-elevated); }
+.data th.r, .data td.r { text-align: right; }
+.data td.nw { white-space: nowrap; }
+.w-52 { width: 13rem; }
+.min-64 { min-width: 64rem; }
+.plot-check { width: 16px; height: 16px; accent-color: var(--color-accent); }
+
   </style>
 </head>
 <body>
@@ -397,8 +468,8 @@ function formatNum(v, digits = 3) {
   if (Math.abs(v) < 1e-9) return "0";
   const a = Math.abs(v);
   if (a !== 0 && (a >= 1e8 || a < 1e-4)) return v.toExponential(2);
-  const t = v.toFixed(digits);
-  return t.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  const t = v.toFixed(digits).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  return t === "-0" ? "0" : t;
 }
 function inputValue(v, maxDec = 6) {
   if (!Number.isFinite(v)) return "";
@@ -763,7 +834,7 @@ function analyze(model) {
   const fail = (status) => ({
     ok: false, status, solverReady: false, supportStable, invalidLoads, warnings, totalLength,
     E: E_mpa, density, nElements: nEl, nNodes, nodeX, stations: [], reactions: [],
-    selected: emptySelected, envelope: [],
+    selected: emptySelected, comboResults: [], envelope: [],
     equilibrium: LOAD_CASES.map((c) => ({ case: c, applied: 0, reactions: 0, residual: 0, ok: true })),
     continuity: [],
     deflectionCheck: { longestSpan: 0, limitN: model.deflectionLimitN, allowableMm: 0, maxAbsMm: 0, utilisation: 0, spans: [], governingLabel: "—", status: "N/A" },
@@ -999,49 +1070,109 @@ function analyze(model) {
     const diffMm = (vRec - vNod) * 1000;
     return { element: elems.indexOf(el) + 1, diffMm, ok: Math.abs(diffMm) < 1e-6 };
   });
-  const Vsel = stations.map((s) => combine(s.V, selectedCombo.factors));
-  const Msel = stations.map((s) => combine(s.M, selectedCombo.factors));
-  const vsel = stations.map((s) => combine(s.v, selectedCombo.factors));
-  const thsel = stations.map((s) => -combine(s.theta, selectedCombo.factors) * (180 / Math.PI));
-  const tau = stations.map((s, i) => {
-    const Av_mm2 = elems[s.elementIndex].Av * 1e6;
-    return Av_mm2 > 0 ? Math.abs((Vsel[i] * 1000) / Av_mm2) : 0;
-  });
-  const sigmaTop = stations.map((s, i) => {
-    const Z_mm3 = elems[s.elementIndex].Z * 1e9;
-    return Z_mm3 > 0 ? -(Msel[i] * 1e6) / Z_mm3 : 0;
-  });
-  const sigmaBot = stations.map((s, i) => {
-    const Z_mm3 = elems[s.elementIndex].Z * 1e9;
-    return Z_mm3 > 0 ? (Msel[i] * 1e6) / Z_mm3 : 0;
-  });
   const xOf = (i) => stations[i]?.x ?? 0;
-  const ext = (label, values, pick, unit) => {
-    if (!values.length) return { label, value: 0, x: 0, combination: selectedCombo.name, unit };
-    if (pick === "max") {
-      const { imax } = argExtrema(values);
-      return { label, value: values[imax], x: xOf(imax), combination: selectedCombo.name, unit };
-    }
-    if (pick === "min") {
-      const { imin } = argExtrema(values);
-      return { label, value: values[imin], x: xOf(imin), combination: selectedCombo.name, unit };
-    }
-    let ibest = 0;
-    for (let i = 1; i < values.length; i++) if (Math.abs(values[i]) > Math.abs(values[ibest])) ibest = i;
-    return { label, value: values[ibest], x: xOf(ibest), combination: selectedCombo.name, unit };
+  const verticalXs = nodeX.filter((_, i) => {
+    const s = supports[i];
+    return s === "Pinned" || s === "Roller" || s === "Fixed";
+  });
+  let longestSpan = 0;
+  for (let i = 1; i < verticalXs.length; i++) longestSpan = Math.max(longestSpan, verticalXs[i] - verticalXs[i - 1]);
+  // Each span is checked against its own length. Comparing the worst deflection anywhere
+  // on the beam against the longest span mixes up unrelated quantities: an overhang tip
+  // would be judged against a span it has nothing to do with.
+  const segments = [];
+  for (let i = 1; i < verticalXs.length; i++) {
+    segments.push({ kind: "Span", x0: verticalXs[i - 1], x1: verticalXs[i] });
+  }
+  if (verticalXs.length) {
+    const first = verticalXs[0];
+    const last = verticalXs[verticalXs.length - 1];
+    if (first > EPS) segments.push({ kind: "Cantilever", x0: 0, x1: first });
+    if (last < totalLength - EPS) segments.push({ kind: "Cantilever", x0: last, x1: totalLength });
+  }
+  // Diagrams, extrema and deflection check for one combination. The selected combination
+  // and every combination in the all-combinations view go through this same path, so both
+  // views report identical numbers for the same combination.
+  const comboResult = (combo) => {
+    const Vsel = stations.map((s) => combine(s.V, combo.factors));
+    const Msel = stations.map((s) => combine(s.M, combo.factors));
+    const vsel = stations.map((s) => combine(s.v, combo.factors));
+    const thsel = stations.map((s) => -combine(s.theta, combo.factors) * (180 / Math.PI));
+    const tau = stations.map((s, i) => {
+      const Av_mm2 = elems[s.elementIndex].Av * 1e6;
+      return Av_mm2 > 0 ? Math.abs((Vsel[i] * 1000) / Av_mm2) : 0;
+    });
+    const sigmaTop = stations.map((s, i) => {
+      const Z_mm3 = elems[s.elementIndex].Z * 1e9;
+      return Z_mm3 > 0 ? -(Msel[i] * 1e6) / Z_mm3 : 0;
+    });
+    const sigmaBot = stations.map((s, i) => {
+      const Z_mm3 = elems[s.elementIndex].Z * 1e9;
+      return Z_mm3 > 0 ? (Msel[i] * 1e6) / Z_mm3 : 0;
+    });
+    const ext = (label, values, pick, unit) => {
+      if (!values.length) return { label, value: 0, x: 0, combination: combo.name, unit, pick };
+      if (pick === "max") {
+        const { imax } = argExtrema(values);
+        return { label, value: values[imax], x: xOf(imax), combination: combo.name, unit, pick };
+      }
+      if (pick === "min") {
+        const { imin } = argExtrema(values);
+        return { label, value: values[imin], x: xOf(imin), combination: combo.name, unit, pick };
+      }
+      let ibest = 0;
+      for (let i = 1; i < values.length; i++) if (Math.abs(values[i]) > Math.abs(values[ibest])) ibest = i;
+      return { label, value: values[ibest], x: xOf(ibest), combination: combo.name, unit, pick };
+    };
+    const extrema = [
+      ext("Maximum positive shear", Vsel, "max", "kN"),
+      ext("Maximum negative shear", Vsel, "min", "kN"),
+      ext("Maximum sagging moment", Msel, "max", "kNm"),
+      ext("Maximum hogging moment", Msel, "min", "kNm"),
+      ext("Maximum upward deflection", vsel, "max", "mm"),
+      ext("Maximum downward deflection", vsel, "min", "mm"),
+      ext("Maximum clockwise slope", thsel, "max", "deg"),
+      ext("Maximum counter-clockwise slope", thsel, "min", "deg"),
+      ext("Maximum average shear stress", tau, "max", "MPa"),
+      ext("Maximum absolute bending stress", sigmaTop.map((t, i) => Math.max(Math.abs(t), Math.abs(sigmaBot[i]))), "max", "MPa"),
+    ];
+    const spanChecks = segments
+      .map((seg) => {
+        const len = seg.x1 - seg.x0;
+        let peak = 0;
+        let peakX = seg.x0;
+        for (let i = 0; i < stations.length; i++) {
+          const x = stations[i].x;
+          if (x < seg.x0 - 1e-9 || x > seg.x1 + 1e-9) continue;
+          if (Math.abs(vsel[i]) > Math.abs(peak)) { peak = vsel[i]; peakX = x; }
+        }
+        const allow = len > 0 && model.deflectionLimitN > 0 ? (len * 1000) / model.deflectionLimitN : 0;
+        return {
+          kind: seg.kind, x0: seg.x0, x1: seg.x1, length: len,
+          maxAbsMm: Math.abs(peak), peakMm: peak, peakX, allowableMm: allow,
+          utilisation: allow > 0 ? Math.abs(peak) / allow : 0,
+        };
+      })
+      .sort((a, b) => a.x0 - b.x0);
+    const governing = spanChecks.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
+    const maxAbsMm = governing ? governing.maxAbsMm : 0;
+    const allowableMm = governing ? governing.allowableMm : 0;
+    const utilisation = governing ? governing.utilisation : 0;
+    return {
+      id: combo.id, name: combo.name, class: combo.class, factors: combo.factors,
+      V: Vsel, M: Msel, v: vsel, slopeDeg: thsel, tau, sigmaTop, sigmaBot, extrema,
+      deflectionCheck: {
+        longestSpan, limitN: model.deflectionLimitN, allowableMm, maxAbsMm, utilisation,
+        spans: spanChecks,
+        governingLabel: governing ? `${governing.kind} ${formatNum(governing.x0, 3)}–${formatNum(governing.x1, 3)} m` : "—",
+        status: allowableMm <= 0 ? "N/A" : utilisation <= 1 ? "PASS" : "FAIL",
+      },
+    };
   };
-  const extrema = [
-    ext("Maximum positive shear", Vsel, "max", "kN"),
-    ext("Maximum negative shear", Vsel, "min", "kN"),
-    ext("Maximum sagging moment", Msel, "max", "kNm"),
-    ext("Maximum hogging moment", Msel, "min", "kNm"),
-    ext("Maximum upward deflection", vsel, "max", "mm"),
-    ext("Maximum downward deflection", vsel, "min", "mm"),
-    ext("Maximum clockwise slope", thsel, "max", "deg"),
-    ext("Maximum counter-clockwise slope", thsel, "min", "deg"),
-    ext("Maximum average shear stress", tau, "max", "MPa"),
-    ext("Maximum absolute bending stress", sigmaTop.map((t, i) => Math.max(Math.abs(t), Math.abs(sigmaBot[i]))), "max", "MPa"),
-  ];
+  const selected = comboResult(selectedCombo);
+  // Matched by identity, not id: an imported file may repeat an id, and each row still needs
+  // its own results.
+  const comboResults = combos.map((c) => (c === selectedCombo ? selected : comboResult(c)));
   const envVmax = [], envVmin = [], envMmax = [], envMmin = [];
   const envVmaxC = [], envVminC = [], envMmaxC = [], envMminC = [];
   const envVup = [], envVdn = [], envVupC = [], envVdnC = [], envSig = [], envSigC = [];
@@ -1085,63 +1216,13 @@ function analyze(model) {
     envItem("Minimum deflection", envVdn, envVdnC, "min", "mm"),
     envItem("Maximum absolute bending stress", envSig, envSigC, "max", "MPa"),
   ];
-  const verticalXs = nodeX.filter((_, i) => {
-    const s = supports[i];
-    return s === "Pinned" || s === "Roller" || s === "Fixed";
-  });
-  let longestSpan = 0;
-  for (let i = 1; i < verticalXs.length; i++) longestSpan = Math.max(longestSpan, verticalXs[i] - verticalXs[i - 1]);
-  // Each span is checked against its own length. Comparing the worst deflection anywhere
-  // on the beam against the longest span mixes up unrelated quantities: an overhang tip
-  // would be judged against a span it has nothing to do with.
-  const segments = [];
-  for (let i = 1; i < verticalXs.length; i++) {
-    segments.push({ kind: "Span", x0: verticalXs[i - 1], x1: verticalXs[i] });
-  }
-  if (verticalXs.length) {
-    const first = verticalXs[0];
-    const last = verticalXs[verticalXs.length - 1];
-    if (first > EPS) segments.push({ kind: "Cantilever", x0: 0, x1: first });
-    if (last < totalLength - EPS) segments.push({ kind: "Cantilever", x0: last, x1: totalLength });
-  }
-  const spanChecks = segments
-    .map((seg) => {
-      const len = seg.x1 - seg.x0;
-      let peak = 0;
-      let peakX = seg.x0;
-      for (let i = 0; i < stations.length; i++) {
-        const x = stations[i].x;
-        if (x < seg.x0 - 1e-9 || x > seg.x1 + 1e-9) continue;
-        if (Math.abs(vsel[i]) > Math.abs(peak)) { peak = vsel[i]; peakX = x; }
-      }
-      const allow = len > 0 && model.deflectionLimitN > 0 ? (len * 1000) / model.deflectionLimitN : 0;
-      return {
-        kind: seg.kind, x0: seg.x0, x1: seg.x1, length: len,
-        maxAbsMm: Math.abs(peak), peakMm: peak, peakX, allowableMm: allow,
-        utilisation: allow > 0 ? Math.abs(peak) / allow : 0,
-      };
-    })
-    .sort((a, b) => a.x0 - b.x0);
-  const governing = spanChecks.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
-  const maxAbsMm = governing ? governing.maxAbsMm : 0;
-  const allowableMm = governing ? governing.allowableMm : 0;
-  const utilisation = governing ? governing.utilisation : 0;
   const status = invalidLoads.length > 0 ? "INVALID LOAD INPUT" : equilibrium.every((e) => e.ok) ? "OK" : "EQUILIBRIUM CHECK";
   return {
     ok: status === "OK" || status === "INVALID LOAD INPUT",
     status, solverReady, supportStable, invalidLoads, warnings, totalLength,
     E: E_mpa, density, nElements: nEl, nNodes, nodeX, stations, reactions,
-    selected: {
-      id: selectedCombo.id, name: selectedCombo.name, factors: selectedCombo.factors,
-      V: Vsel, M: Msel, v: vsel, slopeDeg: thsel, tau, sigmaTop, sigmaBot, extrema,
-    },
-    envelope, equilibrium, continuity,
-    deflectionCheck: {
-      longestSpan, limitN: model.deflectionLimitN, allowableMm, maxAbsMm, utilisation,
-      spans: spanChecks,
-      governingLabel: governing ? `${governing.kind} ${formatNum(governing.x0, 3)}–${formatNum(governing.x1, 3)} m` : "—",
-      status: allowableMm <= 0 ? "N/A" : utilisation <= 1 ? "PASS" : "FAIL",
-    },
+    selected, comboResults, envelope, equilibrium, continuity,
+    deflectionCheck: selected.deflectionCheck,
     sectionAt, defaultI: resolveSection(model.defaultSection, custom).I,
   };
 }
@@ -1156,12 +1237,25 @@ const TABS = [
   { id: "qa", label: "QA" },
 ];
 const CASE_LANE = { G: 0, Q1: 1, Q2: 2, "W+": 0, "W-": 1, O: 2 };
+const ALL_COMBOS = "__all__";
+// Rows past the eighth reuse the eight hues with a dash pattern, so no two rows share a style.
+const COMBO_DASHES = ["", "7 4", "2 3", "10 3 2 3"];
+const STATION_FIELDS = [
+  { value: "V", label: "Shear V (kN)", digits: 3 },
+  { value: "M", label: "Moment M (kNm)", digits: 3 },
+  { value: "v", label: "Deflection δ (mm)", digits: 3 },
+  { value: "slopeDeg", label: "Slope θ (deg)", digits: 4 },
+  { value: "tau", label: "Shear stress τ (MPa)", digits: 3 },
+  { value: "sigmaTop", label: "σ top (MPa)", digits: 3 },
+  { value: "sigmaBot", label: "σ bottom (MPa)", digits: 3 },
+];
 
 const ui = {
   tab: "results",
   probeX: null,
   showInactive: false,
   hover: {},
+  stationField: "M",
 };
 
 let model = excelExample();
@@ -1175,14 +1269,14 @@ function hydrate() {
     const base = excelExample();
     const zero = LOAD_CASES.reduce((acc, k) => ((acc[k] = 0), acc), {});
     model = resizeElements(
-      {
+      withUniqueComboIds({
         ...base,
         ...parsed,
         combinations: (parsed.combinations ?? base.combinations).map((c) => ({
           ...c,
           factors: { ...zero, ...c.factors },
         })),
-      },
+      }),
       parsed.nElements ?? base.nElements,
     );
   } catch {
@@ -1284,6 +1378,90 @@ function nearest(points, x) {
   return best;
 }
 
+function nearestIndex(xs, x) {
+  let best = 0;
+  for (let i = 1; i < xs.length; i++) if (Math.abs(xs[i] - x) < Math.abs(xs[best] - x)) best = i;
+  return best;
+}
+
+function viewBoxSize(svg) {
+  const [, , W, H] = svg.getAttribute("viewBox").split(" ").map(Number);
+  return { W, H };
+}
+
+// Pointer x in viewBox units. The diagrams keep their aspect ratio, so on a wide screen the
+// drawing sits centred with blank margins either side; scaling by the element width alone
+// would put the pointer at the wrong station. The viewBox is read on every call because a
+// resize across the phone breakpoint redraws the diagram at a different width.
+function svgPointerX(svg, ev) {
+  const { W, H } = viewBoxSize(svg);
+  const rect = svg.getBoundingClientRect();
+  const scale = Math.min(rect.width / W, rect.height / H) || 1;
+  return (ev.clientX - rect.left - (rect.width - W * scale) / 2) / scale;
+}
+
+function isAllView(mod) {
+  return mod.comboView === "all";
+}
+
+function activeCombos(mod) {
+  return mod.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+}
+
+function hiddenSet(mod) {
+  return new Set(Array.isArray(mod.hiddenComboIds) ? mod.hiddenComboIds : []);
+}
+
+function shownComboResults(mod, result) {
+  const hidden = hiddenSet(mod);
+  return result.comboResults.filter((r) => !hidden.has(r.id));
+}
+
+// Colour follows the combination's row, not its rank among those shown, so hiding one
+// never repaints the others.
+function comboStyle(mod, id) {
+  const i = Math.max(0, mod.combinations.findIndex((c) => c.id === id));
+  return { color: `var(--combo-${(i % 8) + 1})`, dash: COMBO_DASHES[Math.floor(i / 8) % COMBO_DASHES.length] };
+}
+
+function comboKey(style) {
+  const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : "";
+  return `<svg class="key" viewBox="0 0 20 8" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="${style.color}" stroke-width="2.4"${dash}/></svg>`;
+}
+
+// The combination analyse() actually uses: it falls back to the first row when the stored id
+// is missing or stale.
+function effectiveComboId(mod) {
+  return mod.combinations.some((c) => c.id === mod.selectedComboId) ? mod.selectedComboId : mod.combinations[0]?.id;
+}
+
+function comboSelectOptions(mod) {
+  const all = isAllView(mod);
+  const singles = options(mod.combinations.map((c) => ({ value: c.id, label: c.name })), all ? null : effectiveComboId(mod));
+  // With no combination to show the browser would display the first option, "All
+  // combinations", while the single view is active.
+  const none = !all && effectiveComboId(mod) == null ? `<option value="" selected disabled>None</option>` : "";
+  return `${none}<option value="${ALL_COMBOS}"${all ? " selected" : ""}>All combinations</option><optgroup label="Single combination">${singles}</optgroup>`;
+}
+
+// Rows are looked up by id everywhere (selection, Plot, legend, colours, edits), and data-id
+// attributes are strings. A hand-edited file with a missing, numeric or repeated id gets
+// unique string ids on load, so each row stays separately addressable.
+function withUniqueComboIds(mod) {
+  if (!Array.isArray(mod.combinations)) return mod;
+  const seen = new Set();
+  const combinations = mod.combinations.map((c, i) => {
+    const base = c.id == null || c.id === "" ? `c${i + 1}` : String(c.id);
+    let id = base;
+    for (let n = 2; seen.has(id); n++) id = `${base}-${n}`;
+    seen.add(id);
+    return id === c.id ? c : { ...c, id };
+  });
+  const selectedComboId = mod.selectedComboId == null ? mod.selectedComboId : String(mod.selectedComboId);
+  const hiddenComboIds = Array.isArray(mod.hiddenComboIds) ? mod.hiddenComboIds.map(String) : mod.hiddenComboIds;
+  return { ...mod, combinations, selectedComboId, hiddenComboIds };
+}
+
 function supportMark(x, y, type) {
   if (type === "Fixed") {
     const ticks = [-8, -4, 0, 4, 8]
@@ -1309,10 +1487,25 @@ function schematicSvg(mod, result) {
   const xAt = (x) => padX + (x / L) * inner;
   const loads = mod.loads.filter((l) => l.active && Number.isFinite(l.magnitude) && l.magnitude !== 0);
   const maxUdl = Math.max(0.001, ...loads.filter((l) => l.type === "UDL").map((l) => Math.abs(l.magnitude)));
+  // In the all-combinations view each support is labelled with the largest and smallest
+  // reaction over the shown combinations.
+  const shown = isAllView(mod) ? shownComboResults(mod, result) : null;
   const reactionAt = new Map();
   for (const r of result.reactions) {
-    reactionAt.set(r.node, combinedReaction(r, result.selected.factors).V);
+    if (!shown) {
+      reactionAt.set(r.node, combinedReaction(r, result.selected.factors).V);
+    } else if (shown.length) {
+      const vals = shown.map((c) => combinedReaction(r, c.factors).V);
+      reactionAt.set(r.node, { max: Math.max(...vals), min: Math.min(...vals) });
+    }
   }
+  // Max over min on two short lines, so labels stay as narrow as the single view's and do
+  // not run into each other on closely spaced supports.
+  const reactionLines = (Rv) => {
+    if (typeof Rv === "number") return Math.abs(Rv) >= 1e-6 ? [formatNum(Rv, 2)] : [];
+    if (Math.abs(Rv.max) < 1e-6 && Math.abs(Rv.min) < 1e-6) return [];
+    return Math.abs(Rv.max - Rv.min) < 1e-6 ? [formatNum(Rv.max, 2)] : [formatNum(Rv.max, 2), formatNum(Rv.min, 2)];
+  };
 
   const elLabels = result.nodeX
     .slice(0, n)
@@ -1366,12 +1559,12 @@ function schematicSvg(mod, result) {
       const s = mod.supports[i] ?? "Free";
       const Rv = reactionAt.get(i + 1);
       const end = i === 0 || i === result.nodeX.length - 1;
-      const rvTxt =
-        Rv != null && Math.abs(Rv) >= 1e-6
-          ? `<text x="${px}" y="${beamY + 36}" text-anchor="middle" fill="var(--color-shear)" font-size="8" font-family="var(--font-mono)">${esc(formatNum(Rv, 2))}</text>`
-          : "";
+      const rv = Rv != null ? reactionLines(Rv) : [];
+      const rvTxt = rv
+        .map((t, k) => `<text x="${px}" y="${beamY + 36 + k * 9}" text-anchor="middle" fill="var(--color-shear)" font-size="8" font-family="var(--font-mono)">${esc(t)}</text>`)
+        .join("");
       const xTxt = end
-        ? `<text x="${px}" y="${s === "Free" ? beamY + 28 : beamY + 50}" text-anchor="${i === 0 ? "start" : "end"}" fill="var(--color-muted)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(x, 2))}</text>`
+        ? `<text x="${px}" y="${s === "Free" ? beamY + 28 : beamY + (rv.length > 1 ? 59 : 50)}" text-anchor="${i === 0 ? "start" : "end"}" fill="var(--color-muted)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(x, 2))}</text>`
         : "";
       return `<g><circle cx="${px}" cy="${beamY}" r="2.6" fill="var(--color-bg)" stroke="var(--color-beam)" stroke-width="1.2"/>${s !== "Free" ? supportMark(px, beamY, s) : ""}${rvTxt}${xTxt}</g>`;
     })
@@ -1385,8 +1578,14 @@ function schematicSvg(mod, result) {
   </svg>`;
 }
 
+// The diagrams keep their aspect ratio, so on a phone a 920-wide drawing shrinks to a thin
+// strip with unreadable labels. Below 640 px they are laid out on a narrower canvas instead.
+function diagramWidth() {
+  return window.innerWidth < 640 ? 460 : 920;
+}
+
 function forceDiagramHtml(id, title, unit, color, points, nodeX, envelopeMax, envelopeMin) {
-  const W = 920;
+  const W = diagramWidth();
   const H = 168;
   const pad = { l: 52, r: 16, t: 18, b: 28 };
   const innerW = W - pad.l - pad.r;
@@ -1452,6 +1651,80 @@ function forceDiagramHtml(id, title, unit, color, points, nodeX, envelopeMax, en
       <path d="${areaPath(points)}" fill="${color}" fill-opacity="0.22"/>
       <path d="${toPath(points)}" fill="none" stroke="${color}" stroke-width="1.6"/>
       ${pin}
+      <text x="4" y="${yAt(max) + 8}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(max, 2))}</text>
+      <text x="4" y="${yAt(min)}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(min, 2))}</text>
+    </svg>
+  </div>`;
+}
+
+// One line per combination over a shared station list, with the envelope of the shown
+// combinations as a faint band behind them. Hover and highlight are wired up in
+// bindMultiDiagrams, which reads W and H back from the viewBox and must use the same padding.
+function multiDiagramHtml(id, title, unit, xs, series, nodeX) {
+  const W = diagramWidth();
+  const H = 208;
+  const pad = { l: 52, r: 16, t: 18, b: 28 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const hi = xs.map((_, i) => Math.max(...series.map((s) => s.ys[i])));
+  const lo = xs.map((_, i) => Math.min(...series.map((s) => s.ys[i])));
+  let min = Math.min(0, ...lo);
+  let max = Math.max(0, ...hi);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const span = max - min;
+  min -= span * 0.08;
+  max += span * 0.08;
+  const L = Math.max(xs[xs.length - 1] ?? 1, 1e-6);
+  const xAt = (x) => pad.l + (x / L) * innerW;
+  const yAt = (y) => pad.t + ((max - y) / (max - min)) * innerH;
+  const pts = (ys) => ys.map((y, i) => `${xAt(xs[i]).toFixed(1)} ${yAt(y).toFixed(1)}`);
+  const band = xs.length ? `M ${pts(hi).join(" L ")} L ${pts(lo).reverse().join(" L ")} Z` : "";
+  const nodeLines = nodeX
+    .map(
+      (x, i) =>
+        `<line x1="${xAt(x)}" y1="${pad.t}" x2="${xAt(x)}" y2="${H - pad.b}" stroke="var(--color-border)" stroke-width="1"${i === 0 || i === nodeX.length - 1 ? "" : ' stroke-dasharray="2 4"'}/>`,
+    )
+    .join("");
+  const lines = series
+    .map((s) => {
+      const dash = s.style.dash ? ` stroke-dasharray="${s.style.dash}"` : "";
+      return `<path class="series" data-combo="${esc(s.id)}" d="M ${pts(s.ys).join(" L ")}" fill="none" stroke="${s.style.color}" stroke-width="1.6" stroke-linejoin="round"${dash}/>`;
+    })
+    .join("");
+  let pin = "";
+  if (ui.probeX != null && xs.length) {
+    const i = nearestIndex(xs, ui.probeX);
+    const px = xAt(xs[i]).toFixed(1);
+    pin =
+      `<line x1="${px}" y1="${pad.t}" x2="${px}" y2="${H - pad.b}" stroke="var(--color-fg)" stroke-opacity="0.45"/>` +
+      series
+        .map((s) => `<circle class="series" data-combo="${esc(s.id)}" cx="${px}" cy="${yAt(s.ys[i]).toFixed(1)}" r="3" fill="${s.style.color}" stroke="var(--color-bg)" stroke-width="1"/>`)
+        .join("");
+  }
+  let sMax = series[0];
+  let sMin = series[0];
+  let iMax = 0;
+  let iMin = 0;
+  for (const s of series) {
+    for (let i = 0; i < xs.length; i++) {
+      if (s.ys[i] > sMax.ys[iMax]) { sMax = s; iMax = i; }
+      if (s.ys[i] < sMin.ys[iMin]) { sMin = s; iMin = i; }
+    }
+  }
+  const read = `max ${formatNum(sMax.ys[iMax] ?? 0, 3)} ${sMax.name} · min ${formatNum(sMin.ys[iMin] ?? 0, 3)} ${sMin.name}`;
+  return `<div class="diagram multi" data-diagram="${esc(id)}">
+    <div class="diagram-head">
+      <div><h3>${esc(title)}</h3><span class="unit">${esc(unit)}</span></div>
+      <p class="read">${esc(read)}</p>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)} diagram, all shown combinations" data-diagram-svg="${esc(id)}">
+      <path d="${band}" fill="var(--color-fg)" fill-opacity="0.05"/>
+      <line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}" stroke="var(--color-border-strong)" stroke-width="1"/>
+      ${nodeLines}${lines}${pin}
+      <line data-cross x1="0" y1="${pad.t}" x2="0" y2="${H - pad.b}" stroke="var(--color-fg)" stroke-opacity="0.3" visibility="hidden"/>
       <text x="4" y="${yAt(max) + 8}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(max, 2))}</text>
       <text x="4" y="${yAt(min)}" fill="var(--color-subtle)" font-size="9" font-family="var(--font-mono)">${esc(formatNum(min, 2))}</text>
     </svg>
@@ -1567,14 +1840,22 @@ function renderLoads(mod, result) {
 }
 
 function renderCombos(mod) {
+  const hidden = hiddenSet(mod);
+  const active = activeCombos(mod);
+  const activeIds = new Set(active.map((c) => c.id));
+  const nPlotted = active.filter((c) => !hidden.has(c.id)).length;
   const rows = mod.combinations
     .map((c) => {
-      const selected = c.id === mod.selectedComboId ? " selected" : "";
+      const selected = !isAllView(mod) && c.id === effectiveComboId(mod) ? " selected" : "";
       const factors = LOAD_CASES.map(
         (k) =>
           `<td class="w-24"><input class="field sm" type="number" step="0.05" data-act="combo-factor" data-id="${esc(c.id)}" data-factor="${esc(k)}" value="${esc(inputValue(c.factors[k], 4))}"></td>`,
       ).join("");
+      const plot = activeIds.has(c.id)
+        ? `<input class="plot-check" type="checkbox" data-act="plot-combo" data-id="${esc(c.id)}"${hidden.has(c.id) ? "" : " checked"} aria-label="Plot ${esc(c.name)} in the all-combinations view">`
+        : `<input class="plot-check" type="checkbox" disabled title="All factors are zero — nothing to plot" aria-label="${esc(c.name)} has all-zero factors">`;
       return `<tr class="combo-row${selected}" data-act="select-combo" data-id="${esc(c.id)}">
+        <td class="plot-cell"><label class="key-inline">${plot}${comboKey(comboStyle(mod, c.id))}</label></td>
         <td class="w-32"><input class="field sm" data-act="combo-field" data-id="${esc(c.id)}" data-field="name" value="${esc(c.name)}"></td>
         <td class="muted">${esc(c.class)}</td>
         ${factors}
@@ -1588,16 +1869,16 @@ function renderCombos(mod) {
       <div class="row-head">
         <div>
           <h2>Load combinations</h2>
-          <p class="hint">Factors are user-defined. Confirm ULS / SLS values against the project design basis. Click a row to analyse it.</p>
+          <p class="hint">Factors are user-defined. Confirm ULS / SLS values against the project design basis. Click a row to analyse it on its own. Tick <b>Plot</b> to include a combination when <b>All combinations</b> is selected.</p>
         </div>
         <label class="label w-40">
           <span>Selected combination</span>
-          <select class="sel" data-act="patch" data-field="selectedComboId">${options(mod.combinations.map((c) => ({ value: c.id, label: c.name })), mod.selectedComboId)}</select>
+          <select class="sel" data-act="pick-combo">${comboSelectOptions(mod)}</select>
         </label>
       </div>
       <div class="scroll">
         <table class="data min-48">
-          <thead><tr><th>Name</th><th>Class</th>${LOAD_CASES.map((c) => `<th>${esc(c)}</th>`).join("")}<th>Notes</th></tr></thead>
+          <thead><tr><th><span class="key-inline"><input class="plot-check" type="checkbox" data-act="plot-all"${active.length && nPlotted === active.length ? " checked" : ""}${nPlotted > 0 && nPlotted < active.length ? " data-indeterminate" : ""}${active.length ? "" : " disabled"} aria-label="Plot every combination">Plot</span></th><th>Name</th><th>Class</th>${LOAD_CASES.map((c) => `<th>${esc(c)}</th>`).join("")}<th>Notes</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1609,8 +1890,228 @@ function renderCombos(mod) {
   </div>`;
 }
 
+function viewBar(mod, result) {
+  const all = isAllView(mod);
+  const seg = `<div class="seg" role="group" aria-label="Result view">
+      <button type="button" class="${all ? "" : "on"}" data-act="view" data-view="single" aria-pressed="${all ? "false" : "true"}">Selected combination</button>
+      <button type="button" class="${all ? "on" : ""}" data-act="view" data-view="all" aria-pressed="${all ? "true" : "false"}">All combinations</button>
+    </div>`;
+  if (!all) return `<div class="row-head" style="align-items:center">${seg}</div>`;
+  const hidden = hiddenSet(mod);
+  const nShown = result.comboResults.filter((r) => !hidden.has(r.id)).length;
+  const nTotal = result.comboResults.length;
+  const chips = result.comboResults
+    .map((r) => {
+      const on = !hidden.has(r.id);
+      return `<button type="button" class="chip" data-act="toggle-combo" data-id="${esc(r.id)}" aria-pressed="${on ? "true" : "false"}" title="${esc(`${r.class} · ${factorsText(r.factors)}`)}">${comboKey(comboStyle(mod, r.id))}${esc(r.name)}</button>`;
+    })
+    .join("");
+  return `<section class="card viewbar">
+    <div class="row-head" style="align-items:center">
+      ${seg}
+      <div class="actions">
+        <span class="mono-note" style="margin:0">${nShown} of ${nTotal} shown</span>
+        <button class="btn" type="button" data-act="show-combos" data-show="all"${nShown === nTotal ? " disabled" : ""}>Show all</button>
+        <button class="btn ghost" type="button" data-act="show-combos" data-show="none"${nShown === 0 ? " disabled" : ""}>Hide all</button>
+      </div>
+    </div>
+    <div class="chips">${chips}</div>
+    <p class="hint" style="margin:0">Click a combination to hide or show it; hover it to pick it out on every diagram. Combinations whose factors are all zero are not listed.</p>
+  </section>`;
+}
+
+function renderResultsAll(mod, result) {
+  const bar = viewBar(mod, result);
+  const shown = shownComboResults(mod, result);
+  if (!shown.length) {
+    let why = "Every combination is hidden. Click one above, or Show all.";
+    if (!result.stations.length) why = `The model cannot be analysed (${result.status}). See the QA tab.`;
+    else if (!result.comboResults.length) why = "Every combination has all-zero factors. Enter factors on the Combinations tab.";
+    return `<div class="space-y">${bar}<section class="card"><h2>Nothing to plot</h2><p class="hint">${esc(why)}</p></section></div>`;
+  }
+  const xs = result.stations.map((s) => s.x);
+  const keyed = (r) => `<span class="key-inline">${comboKey(comboStyle(mod, r.id))}${esc(r.name)}</span>`;
+  const probeOn = (x) => ui.probeX != null && Math.abs(x - ui.probeX) < 1e-9;
+
+  // For each extremum, the shown combination that governs it. These are the envelope
+  // extrema of the shown set, and the cells highlighted in the per-combination table.
+  const governing = shown[0].extrema.map((_, k) => {
+    let best = shown[0];
+    for (const r of shown) {
+      const e = r.extrema[k];
+      const b = best.extrema[k];
+      if (e.pick === "min" ? e.value < b.value : e.value > b.value) best = r;
+    }
+    return best;
+  });
+  const cards = governing
+    .map((r, k) => {
+      const e = r.extrema[k];
+      return `<button class="ext-card${probeOn(e.x) ? " on" : ""}" type="button" data-act="probe" data-x="${e.x}">
+        <p class="k">${esc(e.label)}</p>
+        <p class="v">${esc(formatNum(e.value, 3))}<span>${esc(e.unit)}</span></p>
+        <p class="x key-inline">x = ${esc(formatNum(e.x, 3))} m · ${comboKey(comboStyle(mod, r.id))}${esc(r.name)}</p>
+      </button>`;
+    })
+    .join("");
+
+  let pin = `<p class="hint">Click a diagram, extrema card or table value to pin a station and read every combination there.</p>`;
+  if (ui.probeX != null) {
+    let best = Infinity;
+    for (const x of xs) best = Math.min(best, Math.abs(x - ui.probeX));
+    const idx = xs.map((_, i) => i).filter((i) => Math.abs(xs[i] - ui.probeX) <= best + 1e-12);
+    const faceName = (s) => `${s.side === "right" ? "end" : s.side === "left" ? "start" : "inside"} of El ${s.elementIndex + 1}`;
+    const faces = idx.length > 1 ? ` · ${idx.map((i) => faceName(result.stations[i])).join(" / ")}` : "";
+    const cell = (r, field, d) => `<td class="num r nw">${esc(idx.map((i) => formatNum(r[field][i], d)).join(" / "))}</td>`;
+    const rows = shown
+      .map((r) => `<tr><td>${keyed(r)}</td>${cell(r, "V", 3)}${cell(r, "M", 3)}${cell(r, "v", 3)}${cell(r, "slopeDeg", 4)}${cell(r, "tau", 3)}${cell(r, "sigmaTop", 3)}</tr>`)
+      .join("");
+    pin = `<section class="card">
+      <div class="row-head" style="align-items:center">
+        <h2>Pinned x = ${esc(formatNum(ui.probeX, 3))} m${esc(faces)}</h2>
+        <button class="btn ghost" type="button" data-act="clear-probe">Clear pin</button>
+      </div>
+      <div class="scroll">
+        <table class="data tight">
+          <thead><tr><th>Combination</th><th class="r">V (kN)</th><th class="r">M (kNm)</th><th class="r">δ (mm)</th><th class="r">θ (deg)</th><th class="r">τ (MPa)</th><th class="r">σ top (MPa)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+
+  const diagram = (id, title, unit, field) =>
+    multiDiagramHtml(id, title, unit, xs, shown.map((r) => ({ id: r.id, name: r.name, style: comboStyle(mod, r.id), ys: r[field] })), result.nodeX);
+
+  const EXT_HEAD = ["V max", "V min", "M sag", "M hog", "δ up", "δ down", "θ cw", "θ ccw", "τ max", "|σ| max"];
+  const extHead = shown[0].extrema.map((e, k) => `<th class="r">${esc(EXT_HEAD[k] ?? e.label)} (${esc(e.unit)})</th>`).join("");
+  const extRows = shown
+    .map((r) => {
+      const cells = r.extrema
+        .map((e, k) => `<td class="num r pick${governing[k] === r ? " gov" : ""}" data-act="probe" data-x="${e.x}" title="x = ${esc(formatNum(e.x, 3))} m">${esc(formatNum(e.value, 3))}</td>`)
+        .join("");
+      return `<tr><td>${keyed(r)}</td><td class="muted">${esc(r.class)}</td>${cells}</tr>`;
+    })
+    .join("");
+
+  const comboHead = shown.map((r) => `<th class="r">${keyed(r)}</th>`).join("");
+  const reactRows = (part, only) =>
+    result.reactions
+      .filter((rx) => !only || only(rx))
+      .map((rx) => {
+        const vals = shown.map((r) => combinedReaction(rx, r.factors)[part]);
+        const cells = vals.map((v) => `<td class="num r">${esc(formatNum(v, 3))}</td>`).join("");
+        return `<tr class="clickable" data-act="probe" data-x="${rx.x}">
+          <td class="num">${esc(formatNum(rx.x, 3))}</td><td>${esc(rx.support)}</td>${cells}
+          <td class="num r">${esc(formatNum(Math.max(...vals), 3))}</td><td class="num r">${esc(formatNum(Math.min(...vals), 3))}</td>
+        </tr>`;
+      })
+      .join("");
+  const fixedRows = reactRows("M", (rx) => rx.support === "Fixed");
+  const reactTable = (rows) => `<div class="scroll">
+      <table class="data tight">
+        <thead><tr><th>x (m)</th><th>Support</th>${comboHead}<th class="r">Max</th><th class="r">Min</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  const deflRows = shown
+    .map((r) => {
+      const dc = r.deflectionCheck;
+      const gov = dc.spans.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
+      const tone = dc.status === "PASS" ? "ok" : dc.status === "FAIL" ? "danger" : "muted";
+      return `<tr${gov ? ` class="clickable" data-act="probe" data-x="${gov.peakX}"` : ""}>
+        <td>${keyed(r)}</td><td class="muted">${esc(r.class)}</td><td class="nw">${esc(dc.governingLabel)}</td>
+        <td class="num r">${esc(formatNum(gov ? gov.peakMm : 0, 3))}</td>
+        <td class="num r">${esc(formatNum(dc.allowableMm, 2))}</td>
+        <td class="num r">${esc(formatNum(dc.utilisation, 3))}</td>
+        <td>${badge(dc.status, tone)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const sf = STATION_FIELDS.find((f) => f.value === ui.stationField) ?? STATION_FIELDS[1];
+  const stRows = result.stations
+    .map((s, i) => {
+      const cells = shown.map((r) => `<td class="num r">${esc(formatNum(r[sf.value][i], sf.digits))}</td>`).join("");
+      return `<tr class="clickable${probeOn(s.x) ? " on" : ""}" data-act="probe" data-x="${s.x}">
+        <td class="num">${esc(formatNum(s.x, 3))}</td><td class="num">${s.elementIndex + 1}</td>
+        <td class="muted">${s.side === "interior" ? "—" : esc(s.side)}</td>${cells}
+      </tr>`;
+    })
+    .join("");
+
+  const nHidden = result.comboResults.length - shown.length;
+  const hiddenNote = nHidden
+    ? `<p class="hint" style="margin:0;color:var(--color-warn)">${nHidden} combination${nHidden > 1 ? "s are" : " is"} hidden. The governing values below leave ${nHidden > 1 ? "them" : "it"} out.</p>`
+    : "";
+  return `<div class="space-y">
+    ${bar}
+    <div style="display:grid;gap:0.5rem">${hiddenNote}<div class="extrema">${cards}</div></div>
+    ${pin}
+    ${diagram("V", "Shear", "kN", "V")}
+    ${diagram("M", "Bending moment (sagging +)", "kNm", "M")}
+    ${diagram("v", "Deflection (up +)", "mm", "v")}
+    ${diagram("slope", "Slope (clockwise +)", "deg", "slopeDeg")}
+    ${diagram("tau", "Average shear stress", "MPa", "tau")}
+    ${diagram("sigma", "Bending stress, top fibre", "MPa", "sigmaTop")}
+    <section class="card">
+      <h2>Extrema by combination</h2>
+      <p class="hint">Highlighted values govern across the shown combinations — they are the values on the cards above. Click a value to pin its station.</p>
+      <div class="scroll">
+        <table class="data tight min-64">
+          <thead><tr><th>Combination</th><th>Class</th>${extHead}</tr></thead>
+          <tbody>${extRows}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Support reactions — all combinations</h2>
+      <p class="hint">Vertical reaction, kN, positive upward. Max and min are taken over the shown combinations.</p>
+      ${reactTable(reactRows("V"))}
+      ${fixedRows ? `<p class="hint" style="margin-top:1rem">Moment reaction at fixed supports, kNm, positive counter-clockwise.</p>${reactTable(fixedRows)}` : ""}
+    </section>
+    <section class="card">
+      <div class="row-head">
+        <div>
+          <h2>Deflection check — all combinations</h2>
+          <p class="hint">Each combination checked span by span against L / ${esc(formatNum(mod.deflectionLimitN, 0))}. Only unfactored serviceability combinations give a meaningful result; factored rows are listed for reference.</p>
+        </div>
+        <label class="label w-40">
+          <span>Limit span / n</span>
+          <input class="field" type="number" min="50" max="1000" data-act="patch" data-field="deflectionLimitN" value="${esc(inputValue(mod.deflectionLimitN, 0))}">
+        </label>
+      </div>
+      <div class="scroll">
+        <table class="data tight">
+          <thead><tr><th>Combination</th><th>Class</th><th>Governing segment</th><th class="r">δ (mm)</th><th class="r">Allowable</th><th class="r">Util.</th><th>Status</th></tr></thead>
+          <tbody>${deflRows}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <div class="row-head">
+        <div>
+          <h2>Station results — all combinations</h2>
+          <p class="hint">${esc(sf.label)} at ${result.stations.length} stations × ${shown.length} combinations. Duplicate rows at a node are the left and right faces of a discontinuity. Click a row to pin.</p>
+        </div>
+        <label class="label w-52">
+          <span>Quantity</span>
+          <select class="sel sm" data-act="station-field">${options(STATION_FIELDS.map((f) => ({ value: f.value, label: f.label })), sf.value)}</select>
+        </label>
+      </div>
+      <div class="scroll-y">
+        <table class="data tight">
+          <thead class="sticky"><tr><th>x (m)</th><th>El</th><th>Face</th>${comboHead}</tr></thead>
+          <tbody>${stRows}</tbody>
+        </table>
+      </div>
+    </section>
+  </div>`;
+}
+
 function renderResults(mod, result) {
-  const combos = mod.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
+  const combos = activeCombos(mod);
   const V = seriesFrom(result, "V");
   const M = seriesFrom(result, "M");
   const v = seriesFrom(result, "v");
@@ -1660,7 +2161,7 @@ function renderResults(mod, result) {
     .map(
       (e) => `<tr class="clickable" data-act="probe" data-x="${e.x}">
         <td>${esc(e.label)}</td>
-        <td class="num">${esc(formatNum(e.value, 3))} ${esc(e.unit)}</td>
+        <td class="num nw">${esc(formatNum(e.value, 3))} ${esc(e.unit)}</td>
         <td class="num">${esc(formatNum(e.x, 3))}</td>
         <td>${esc(e.governing)}</td>
       </tr>`,
@@ -1700,6 +2201,7 @@ function renderResults(mod, result) {
     .join("");
 
   return `<div class="space-y">
+    ${viewBar(mod, result)}
     <div class="extrema">${cards}</div>
     ${pin}
     ${forceDiagramHtml("V", "Shear", "kN", "var(--color-shear)", V, result.nodeX, envelopeTrace(result.stations, combos, "V", "max"), envelopeTrace(result.stations, combos, "V", "min"))}
@@ -1763,8 +2265,11 @@ function renderResults(mod, result) {
   </div>`;
 }
 
-function renderQa(result) {
+function renderQa(mod, result) {
   const tone = result.status === "OK" ? "ok" : "danger";
+  const viewRow = isAllView(mod)
+    ? `<div class="status-row"><dt>Result view</dt><dd><span class="mono-note" style="margin:0;color:var(--color-fg)">All combinations · ${shownComboResults(mod, result).length} of ${result.comboResults.length} shown</span></dd></div>`
+    : "";
   const invalid = result.invalidLoads.length
     ? `<ul class="warn-list">${result.invalidLoads.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`
     : "";
@@ -1800,6 +2305,7 @@ function renderQa(result) {
         <div class="status-row"><dt>Support stability</dt><dd>${badge(result.supportStable ? "True" : "False", result.supportStable ? "ok" : "danger")}</dd></div>
         <div class="status-row"><dt>Invalid active loads</dt><dd>${badge(String(result.invalidLoads.length), result.invalidLoads.length ? "warn" : "ok")}</dd></div>
         <div class="status-row"><dt>Selected combination</dt><dd><span class="mono-note" style="margin:0;color:var(--color-fg)">${esc(result.selected.name)}</span></dd></div>
+        ${viewRow}
       </dl>
       ${invalid}${warns}
     </section>
@@ -1854,8 +2360,8 @@ function panelHtml(mod, result) {
   if (ui.tab === "geometry") return renderGeometry(mod, result);
   if (ui.tab === "loads") return renderLoads(mod, result);
   if (ui.tab === "combos") return renderCombos(mod);
-  if (ui.tab === "qa") return renderQa(result);
-  return renderResults(mod, result);
+  if (ui.tab === "qa") return renderQa(mod, result);
+  return isAllView(mod) ? renderResultsAll(mod, result) : renderResults(mod, result);
 }
 
 function loadLegend(mod, result) {
@@ -1867,7 +2373,8 @@ function loadLegend(mod, result) {
       return `<span>${esc(ld.id)} ${esc(ld.case)} ${esc(ld.type)} ${esc(formatNum(ld.magnitude, 3))}${u}</span>`;
     })
     .join("");
-  const rx = result.reactions.length ? `<span class="subtle">Reactions ↑ kN under supports</span>` : "";
+  const rxNote = isAllView(mod) ? "Reactions ↑ kN under supports: max over min of the shown combinations" : "Reactions ↑ kN under supports";
+  const rx = result.reactions.length ? `<span class="subtle">${rxNote}</span>` : "";
   return `<div class="load-legend">${items}${rx}</div>`;
 }
 
@@ -1877,22 +2384,50 @@ function statusTone(result) {
   return "danger";
 }
 
-function factorsLine(result) {
-  const bits = LOAD_CASES.filter((k) => (result.selected.factors[k] ?? 0) !== 0).map(
-    (k) => `${formatNum(result.selected.factors[k], 2)} ${k}`,
-  );
+function factorsText(factors) {
+  const bits = LOAD_CASES.filter((k) => (factors[k] ?? 0) !== 0).map((k) => `${formatNum(factors[k], 2)} ${k}`);
   return bits.join(" + ") || "zero factors";
 }
 
+function factorsLine(result) {
+  return factorsText(result.selected.factors);
+}
+
+const FOCUS_ATTRS = ["data-act", "data-id", "data-view", "data-show", "data-tab", "data-preset", "data-field", "data-index", "data-factor", "data-x"];
+
+// render() replaces every element, which would drop keyboard focus to the top of the page.
+// Buttons, selects and checkboxes keep focus while they act, so put it back on their
+// replacement. Text fields are left alone: they commit on blur, when focus is already moving.
+// Controls can share every attribute (the two combination selects, extrema cards at the same
+// x), so the position among identical controls is part of the key.
+function sameControls(key) {
+  return [...document.querySelectorAll("[data-act]")].filter((el) => FOCUS_ATTRS.every((a, i) => el.getAttribute(a) === key[i]));
+}
+
+function focusedControl() {
+  const el = document.activeElement;
+  if (!el || !el.hasAttribute?.("data-act")) return null;
+  if (!(el.tagName === "BUTTON" || el.tagName === "SELECT" || (el.tagName === "INPUT" && el.type === "checkbox"))) return null;
+  const key = FOCUS_ATTRS.map((a) => el.getAttribute(a));
+  return { key, index: sameControls(key).indexOf(el) };
+}
+
+function restoreFocus(focus) {
+  if (!focus) return;
+  const matches = sameControls(focus.key);
+  (matches[focus.index] ?? matches[0])?.focus({ preventScroll: true });
+}
+
 function render() {
+  const focusKey = focusedControl();
   const result = analyze(model);
   const tabs = TABS.map(
     (t) => `<button class="tab${ui.tab === t.id ? " active" : ""}" type="button" data-act="tab" data-tab="${t.id}">${esc(t.label)}</button>`,
   ).join("");
-  const comboOpts = options(
-    model.combinations.map((c) => ({ value: c.id, label: c.name })),
-    model.selectedComboId,
-  );
+  const all = isAllView(model);
+  const viewMeta = all
+    ? `${shownComboResults(model, result).length} of ${result.comboResults.length} combinations shown`
+    : factorsLine(result);
   document.getElementById("app").innerHTML = `
     <header class="header">
       <div class="wrap header-inner">
@@ -1912,7 +2447,7 @@ function render() {
         </div>
         <div class="header-actions">
           ${badge(result.status, statusTone(result))}
-          <select class="sel sm w-36" data-act="patch" data-field="selectedComboId" aria-label="Selected combination">${comboOpts}</select>
+          <select class="sel sm w-40" data-act="pick-combo" aria-label="Selected combination">${comboSelectOptions(model)}</select>
           <button class="btn hide-sm" type="button" data-act="preset" data-preset="example">${iconReset()} Example</button>
           <button class="btn hide-sm" type="button" data-act="preset" data-preset="three">3-span</button>
           <select class="sel sm w-preset show-sm" data-act="preset-select" aria-label="Load a preset">
@@ -1927,21 +2462,26 @@ function render() {
       </div>
     </header>
     <main class="wrap main">
-      <p class="kicker">Selected combination</p>
-      <h1 class="page-title">${esc(result.selected.name)}</h1>
-      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · default section ${esc(model.defaultSection)}, I = ${esc(formatNum(result.defaultI, 0))} mm⁴ · ${esc(factorsLine(result))}</p>
+      <p class="kicker">${all ? "Combination view" : "Selected combination"}</p>
+      <h1 class="page-title">${all ? "All combinations" : esc(result.selected.name)}</h1>
+      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · default section ${esc(model.defaultSection)}, I = ${esc(formatNum(result.defaultI, 0))} mm⁴ · ${esc(viewMeta)}</p>
       <div class="schematic">${schematicSvg(model, result)}${loadLegend(model, result)}</div>
       <nav class="tabs-wrap" aria-label="Sections"><div class="tabs">${tabs}</div></nav>
       <div class="panel">${panelHtml(model, result)}</div>
       <footer class="foot"><span>Analysis only. Confirm section properties, load factors, strength, stability, buckling, support behaviour and serviceability independently before design use.</span><span class="foot-brand">Lumax Energy · CBA</span></footer>
     </main>
     <input class="file-input" id="import-file" type="file" accept="application/json">
+    <div class="mtip" id="mtip" role="presentation" hidden></div>
   `;
-  bindDiagrams(result);
+  document.querySelectorAll("[data-indeterminate]").forEach((el) => {
+    el.indeterminate = true;
+  });
+  if (all) bindMultiDiagrams(result);
+  else bindDiagrams(result);
+  restoreFocus(focusKey);
 }
 
 function bindDiagrams(result) {
-  const combos = model.combinations.filter((c) => LOAD_CASES.some((k) => (c.factors[k] ?? 0) !== 0));
   const catalog = {
     V: { points: seriesFrom(result, "V"), unit: "kN" },
     M: { points: seriesFrom(result, "M"), unit: "kNm" },
@@ -1954,15 +2494,12 @@ function bindDiagrams(result) {
     const id = svg.getAttribute("data-diagram-svg");
     const spec = catalog[id];
     if (!spec || !spec.points.length) return;
-    const W = 920;
     const padL = 52;
     const padR = 16;
-    const innerW = W - padL - padR;
     const L = Math.max(spec.points[spec.points.length - 1].x, 1e-6);
     const pick = (ev) => {
-      const rect = svg.getBoundingClientRect();
-      const px = ((ev.clientX - rect.left) / rect.width) * W;
-      const x = ((px - padL) / innerW) * L;
+      const innerW = viewBoxSize(svg).W - padL - padR;
+      const x = ((svgPointerX(svg, ev) - padL) / innerW) * L;
       if (x < 0 || x > L) return null;
       return nearest(spec.points, x);
     };
@@ -1979,14 +2516,107 @@ function bindDiagrams(result) {
       const p = pick(ev);
       if (p) {
         ui.probeX = p.x;
-        render();
+        renderInPlace(svg);
       }
     });
   });
-  void combos;
+}
+
+function bindMultiDiagrams(result) {
+  const shown = shownComboResults(model, result);
+  const xs = result.stations.map((s) => s.x);
+  const tip = document.getElementById("mtip");
+  if (!shown.length || !xs.length || !tip) return;
+  const fields = {
+    V: { field: "V", unit: "kN", digits: 3 },
+    M: { field: "M", unit: "kNm", digits: 3 },
+    v: { field: "v", unit: "mm", digits: 3 },
+    slope: { field: "slopeDeg", unit: "deg", digits: 4 },
+    tau: { field: "tau", unit: "MPa", digits: 3 },
+    sigma: { field: "sigmaTop", unit: "MPa", digits: 3 },
+  };
+  const L = Math.max(xs[xs.length - 1], 1e-6);
+  document.querySelectorAll(".diagram.multi [data-diagram-svg]").forEach((svg) => {
+    const spec = fields[svg.getAttribute("data-diagram-svg")];
+    if (!spec) return;
+    // Padding must match multiDiagramHtml. Width and crosshair are looked up per event: a
+    // resize across the phone breakpoint redraws the inside of this svg.
+    const padL = 52;
+    const innerW = () => viewBoxSize(svg).W - padL - 16;
+    const pick = (ev) => {
+      const x = ((svgPointerX(svg, ev) - padL) / innerW()) * L;
+      return x < 0 || x > L ? null : nearestIndex(xs, x);
+    };
+    const hide = () => {
+      tip.hidden = true;
+      svg.querySelector("[data-cross]")?.setAttribute("visibility", "hidden");
+    };
+    svg.addEventListener("mousemove", (ev) => {
+      const i = pick(ev);
+      if (i == null) return hide();
+      const cross = svg.querySelector("[data-cross]");
+      const px = (padL + (xs[i] / L) * innerW()).toFixed(1);
+      cross?.setAttribute("x1", px);
+      cross?.setAttribute("x2", px);
+      cross?.setAttribute("visibility", "visible");
+      // Every shown combination at this station, largest first. Names are user input, so
+      // they go in through textContent.
+      const head = document.createElement("p");
+      head.className = "t";
+      head.textContent = `x = ${formatNum(xs[i], 3)} m · ${spec.unit}`;
+      const rows = shown
+        .map((r) => ({ r, y: r[spec.field][i] }))
+        .sort((a, b) => b.y - a.y)
+        .map(({ r, y }) => {
+          const row = document.createElement("p");
+          row.className = "r";
+          row.innerHTML = comboKey(comboStyle(model, r.id));
+          const val = document.createElement("b");
+          val.textContent = formatNum(y, spec.digits);
+          const name = document.createElement("span");
+          name.textContent = r.name;
+          row.append(val, name);
+          return row;
+        });
+      tip.replaceChildren(head, ...rows);
+      tip.hidden = false;
+      const tw = tip.offsetWidth;
+      const th = tip.offsetHeight;
+      let left = ev.clientX + 16;
+      if (left + tw > window.innerWidth - 8) left = ev.clientX - tw - 16;
+      const top = Math.min(Math.max(8, ev.clientY - th / 2), window.innerHeight - th - 8);
+      tip.style.left = `${Math.max(8, left)}px`;
+      tip.style.top = `${Math.max(8, top)}px`;
+    });
+    svg.addEventListener("mouseleave", hide);
+    svg.addEventListener("click", (ev) => {
+      const i = pick(ev);
+      if (i != null) {
+        ui.probeX = xs[i];
+        renderInPlace(svg);
+      }
+    });
+  });
+  // Hovering or focusing a legend chip picks that combination out on every diagram.
+  const highlight = (id) => {
+    document.querySelectorAll(".diagram.multi").forEach((d) => {
+      d.classList.toggle("has-hl", id != null);
+      d.querySelectorAll(".series").forEach((p) => p.classList.toggle("hl", p.getAttribute("data-combo") === id));
+    });
+  };
+  document.querySelectorAll('[data-act="toggle-combo"][aria-pressed="true"]').forEach((chip) => {
+    const id = chip.getAttribute("data-id");
+    chip.addEventListener("mouseenter", () => highlight(id));
+    chip.addEventListener("mouseleave", () => highlight(null));
+    chip.addEventListener("focus", () => highlight(id));
+    chip.addEventListener("blur", () => highlight(null));
+  });
 }
 
 function setModel(next) {
+  // Presets, and files saved before the all-combinations view existed, carry no view
+  // settings; keep the ones in use rather than dropping back to a single combination.
+  next = withUniqueComboIds({ comboView: model.comboView, hiddenComboIds: model.hiddenComboIds, ...next });
   model = resizeElements(next, next.nElements);
   persist();
   ui.probeX = null;
@@ -2022,6 +2652,20 @@ function exportJson() {
 
 function exportCsv() {
   const result = analyze(model);
+  if (isAllView(model)) {
+    // Long format, one block of stations per shown combination. Element and face tell apart
+    // the two rows that share an x at a node, so (combination, element, face, x) is unique.
+    const lines = ["combination,x_m,element,face,V_kN,M_kNm,defl_mm,slope_deg,tau_MPa,sigma_top_MPa,sigma_bot_MPa"];
+    for (const r of shownComboResults(model, result)) {
+      const name = `"${String(r.name).replace(/"/g, '""')}"`;
+      for (let i = 0; i < result.stations.length; i++) {
+        const s = result.stations[i];
+        lines.push([name, s.x, s.elementIndex + 1, s.side, r.V[i], r.M[i], r.v[i], r.slopeDeg[i], r.tau[i], r.sigmaTop[i], r.sigmaBot[i]].join(","));
+      }
+    }
+    downloadBlob(lines.join("\n"), "text/csv", "cba-all-combinations.csv");
+    return;
+  }
   const lines = ["x_m,V_kN,M_kNm,defl_mm,slope_deg,tau_MPa,sigma_top_MPa,sigma_bot_MPa"];
   for (let i = 0; i < result.stations.length; i++) {
     lines.push(
@@ -2080,14 +2724,60 @@ function onClick(ev) {
     patch({ loads: model.loads.filter((_, j) => j !== i) });
   } else if (act === "probe") {
     ui.probeX = Number(t.getAttribute("data-x"));
-    render();
+    renderInPlace(t);
   } else if (act === "clear-probe") {
     ui.probeX = null;
-    render();
+    renderInPlace(t);
   } else if (act === "select-combo") {
-    if (ev.target.closest("input,select,button")) return;
-    patch({ selectedComboId: t.getAttribute("data-id") });
+    if (ev.target.closest("input,select,button,label,.plot-cell")) return;
+    patch({ comboView: "single", selectedComboId: t.getAttribute("data-id") });
+  } else if (act === "view") {
+    patch({ comboView: t.getAttribute("data-view") === "all" ? "all" : "single" });
+  } else if (act === "toggle-combo") {
+    const id = t.getAttribute("data-id");
+    setComboHidden([id], !hiddenSet(model).has(id));
+  } else if (act === "show-combos") {
+    showAllCombos(t.getAttribute("data-show") !== "none");
   }
+}
+
+// Every row, including ones whose factors are zero right now, so a later factor edit does not
+// bring back a choice the user has since overridden.
+function showAllCombos(show) {
+  patch({ hiddenComboIds: show ? [] : model.combinations.map((c) => c.id) });
+}
+
+// render() rebuilds the page. When a click pins a station, the pin readout above the diagrams
+// changes height; keep the block that was clicked where it was on screen, and keep each
+// table's own scroll position, across and down. The pin readout always fills one block slot,
+// so a scroller is identified by its block and its position inside that block.
+function renderInPlace(el) {
+  const blocks = () => [...document.querySelectorAll(".panel > .space-y > *")];
+  const scrollers = () => blocks().flatMap((b, bi) => [...b.querySelectorAll(".scroll, .scroll-y")].map((s, k) => ({ key: `${bi}:${k}`, s })));
+  const i = blocks().findIndex((b) => b.contains(el));
+  const top = i >= 0 ? blocks()[i].getBoundingClientRect().top : 0;
+  const saved = new Map(scrollers().filter(({ s }) => s.scrollTop || s.scrollLeft).map(({ key, s }) => [key, [s.scrollTop, s.scrollLeft]]));
+  render();
+  for (const { key, s } of scrollers()) {
+    const at = saved.get(key);
+    if (!at) continue;
+    // A fresh station table is skipped by content-visibility until painted and would clamp
+    // the offset to 0; lay it out now. It was on screen anyway if it had been scrolled.
+    s.style.contentVisibility = "visible";
+    s.scrollTop = at[0];
+    s.scrollLeft = at[1];
+  }
+  const shift = i >= 0 && blocks()[i] ? blocks()[i].getBoundingClientRect().top - top : 0;
+  if (shift) window.scrollBy(0, shift);
+}
+
+function setComboHidden(ids, hide) {
+  const hidden = hiddenSet(model);
+  for (const id of ids) {
+    if (hide) hidden.add(id);
+    else hidden.delete(id);
+  }
+  patch({ hiddenComboIds: [...hidden] });
 }
 
 function onChange(ev) {
@@ -2145,6 +2835,16 @@ function onChange(ev) {
     if (t.value === "example") setModel(excelExample());
     if (t.value === "three") setModel(simpleThreeSpan());
     t.value = "";
+  } else if (act === "pick-combo") {
+    if (t.value === ALL_COMBOS) patch({ comboView: "all" });
+    else patch({ comboView: "single", selectedComboId: t.value });
+  } else if (act === "plot-combo") {
+    setComboHidden([t.getAttribute("data-id")], !t.checked);
+  } else if (act === "plot-all") {
+    showAllCombos(t.checked);
+  } else if (act === "station-field") {
+    ui.stationField = t.value;
+    render();
   }
 }
 
@@ -2155,6 +2855,27 @@ document.addEventListener("change", (ev) => {
     importJsonFile(ev.target.files[0]);
     ev.target.value = "";
   }
+});
+// diagramWidth() depends on the viewport, so redraw the diagrams when a resize crosses its
+// breakpoint. A full render() here would throw away a field being typed in (rotating a
+// phone mid-edit), and replacing elements would break the browser's scroll anchoring and
+// jump the page; so the SVG elements stay and only their drawing is swapped. Their event
+// handlers read the viewBox on each event, so they need no rebinding.
+let lastDiagramWidth = diagramWidth();
+window.addEventListener("resize", () => {
+  if (diagramWidth() === lastDiagramWidth) return;
+  lastDiagramWidth = diagramWidth();
+  const live = document.querySelectorAll(".panel [data-diagram-svg]");
+  if (!live.length) return;
+  const fresh = document.createElement("template");
+  fresh.innerHTML = panelHtml(model, analyze(model));
+  const drawn = [...fresh.content.querySelectorAll("[data-diagram-svg]")];
+  live.forEach((svg) => {
+    const next = drawn.find((n) => n.getAttribute("data-diagram-svg") === svg.getAttribute("data-diagram-svg"));
+    if (!next) return;
+    svg.setAttribute("viewBox", next.getAttribute("viewBox"));
+    svg.innerHTML = next.innerHTML;
+  });
 });
 
 hydrate();
