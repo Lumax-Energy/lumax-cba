@@ -1,7 +1,68 @@
 {
   "schema": "lumax-cba/beams@1",
-  "revision": 0,
-  "updated": "2026-11-03T00:00:00.000Z",
+  "revision": 1,
+  "updated": "2026-11-04T16:39:24.667Z",
   "note": "Beam library for CBA (https://lumax-energy.github.io/lumax-cba/). Units: mm, mm2, mm3, mm4, kg/m. Edit it on the app's Beams tab, or by hand here: names must be unique, and I, Z and A must be greater than zero.",
-  "beams": []
+  "beams": [
+    {
+      "name": "I 200x100x5x7",
+      "shape": "i",
+      "dims": {
+        "h": 200,
+        "b": 100,
+        "tw": 5,
+        "tf": 7,
+        "r": 2
+      },
+      "material": "Steel",
+      "h": 200,
+      "mass": 18.32,
+      "A": 2333.43,
+      "I": 15753500,
+      "Z": 157535,
+      "Av": 1000,
+      "source": "Calculated from dimensions (nominal gross section)",
+      "notes": "lucian-du-plessis",
+      "updated": "2026-11-04"
+    },
+    {
+      "name": "C 130x50x15x1.5",
+      "shape": "lipped",
+      "dims": {
+        "h": 130,
+        "b": 50,
+        "c": 15,
+        "t": 1.5,
+        "ri": 2.25
+      },
+      "material": "Steel",
+      "h": 130,
+      "mass": 2.93,
+      "A": 373.274,
+      "I": 973879,
+      "Z": 14982.8,
+      "Av": 195,
+      "source": "Calculated from dimensions (nominal gross section)",
+      "updated": "2026-11-04"
+    },
+    {
+      "name": "SHS 60x60x3.0",
+      "shape": "rhs",
+      "dims": {
+        "h": 60,
+        "b": 60,
+        "t": 3,
+        "ro": 6
+      },
+      "material": "Steel",
+      "h": 60,
+      "mass": 5.187,
+      "A": 660.823,
+      "I": 351348,
+      "Z": 11711.6,
+      "Av": 360,
+      "source": "Calculated from dimensions (nominal gross section)",
+      "updated": "2026-11-04"
+    }
+  ]
 }
