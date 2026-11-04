@@ -8,6 +8,11 @@ END=$(grep -n '^const STORAGE_KEY = ' "$SRC" | head -1 | cut -d: -f1)
 sed -n "${START},$((END-1))p" "$SRC" > "$DIR/engine.js"
 cat >> "$DIR/engine.js" <<'JS'
 
-module.exports = { analyze, simpleThreeSpan, excelExample, emptyLoads, DEFAULT_COMBINATIONS, SECTION_LIBRARY, LOAD_CASES };
+module.exports = {
+  analyze, simpleThreeSpan, excelExample, emptyLoads, DEFAULT_COMBINATIONS, SECTION_LIBRARY, LOAD_CASES,
+  setSectionLibrary, resolveSection, normaliseBeam, normaliseBeamFile, applyBeamOps, beamDiff,
+  BEAM_SHAPES, shapeProblems, sectionFromShape, sectionOutline, suggestBeamName,
+  beamPlausibility, matchMaterial, beamExtras, sectionPropsDiffer,
+};
 JS
 echo "wrote $DIR/engine.js"

@@ -3,6 +3,8 @@ const E = require("./engine.js");
 let s = 20260914;
 const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 const pick = (a) => a[Math.floor(rnd() * a.length)];
+// The shipped library is empty (beams live in beams.json), so give the sweep some to pick from.
+E.setSectionLibrary(require("./test-beams.js").testBeams());
 const SECS = E.SECTION_LIBRARY.map((x) => x.name);
 
 let nRun = 0, nOk = 0, eqFail = 0, ctFail = 0, nanFail = 0, deflBad = 0;
@@ -69,3 +71,4 @@ for (let t = 0; t < 1000; t++) {
 console.log(`\nran ${nRun}, analysed OK ${nOk}`);
 console.log("statuses:", JSON.stringify(statuses));
 console.log(`equilibrium failures ${eqFail}, continuity failures ${ctFail}, non-finite outputs ${nanFail}, deflection-check inconsistencies ${deflBad}`);
+process.exitCode = eqFail || ctFail || nanFail || deflBad || nRun !== 1000 ? 1 : 0;

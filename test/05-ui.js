@@ -6,7 +6,12 @@ const errors = [];
 const vc = new VirtualConsole();
 vc.on("jsdomError", (e) => errors.push("jsdomError: " + (e.stack || e.message)));
 vc.on("error", (...a) => errors.push("console.error: " + a.join(" ")));
-const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.com/", virtualConsole: vc, pretendToBeVisual: true });
+// The page reads its beam library from beams.json; start it from a cached copy instead.
+const BEAMS = require("./test-beams.js").testBeams();
+const dom = new JSDOM(html, {
+  runScripts: "dangerously", url: "https://example.com/", virtualConsole: vc, pretendToBeVisual: true,
+  beforeParse(w) { w.localStorage.setItem("cba-beams-cache-v1", JSON.stringify({ revision: 1, beams: BEAMS })); },
+});
 const { window } = dom;
 const doc = window.document;
 const click = (el) => el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
@@ -41,12 +46,13 @@ tab("geometry");
 const customI = () => doc.querySelector('[data-act="patch"][data-field="customI"]');
 ok("custom I editable when default section is Custom", !customI().disabled);
 // switch default to a library section; elements follow, so custom becomes unused
-change(doc.querySelector('[data-act="default-section"]'), "IPE 300");
+change(doc.querySelector('[data-act="default-section"]'), "TEST I 300");
 ok("custom I disabled once nothing uses Custom", customI().disabled);
 // set one element back to Custom -> field must become editable again
 change(doc.querySelector('[data-act="element"][data-field="section"]'), "Custom");
 ok("custom I re-enabled when one element uses Custom", !customI().disabled);
-ok("meta follows the new default section", /default section IPE 300/.test(doc.querySelector(".meta").textContent), doc.querySelector(".meta").textContent.trim());
+ok("meta follows the new default section", /default section TEST I 300/.test(doc.querySelector(".meta").textContent), doc.querySelector(".meta").textContent.trim());
+ok("no IPE sections offered", ![...doc.querySelectorAll('[data-act="default-section"] option')].some((o) => /IPE/.test(o.textContent)));
 
 // --- warnings ----------------------------------------------------------
 click(doc.querySelector('[data-act="preset"][data-preset="three"]'));
@@ -72,4 +78,5 @@ const stored = window.localStorage.getItem("cba-model-v1");
 ok("model persisted", !!stored && JSON.parse(stored).elements.length === 12);
 
 console.log(`\n${fail} failures, ${errors.length} runtime errors`);
+process.exitCode = fail || errors.length ? 1 : 0;
 errors.forEach((e) => console.log(e));

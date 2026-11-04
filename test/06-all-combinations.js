@@ -12,6 +12,8 @@ const ok = (name, cond, extra = "") => { if (!cond) fail++; console.log(`${cond 
 let s = 20261023;
 const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 const pick = (a) => a[Math.floor(rnd() * a.length)];
+// The shipped library is empty (beams live in beams.json), so give the sweep some to pick from.
+E.setSectionLibrary(require("./test-beams.js").testBeams());
 const SECS = E.SECTION_LIBRARY.map((x) => x.name);
 
 function randomModel() {

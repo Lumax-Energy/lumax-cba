@@ -1,0 +1,11 @@
+{
+  "name": "lumax-cba-tests",
+  "private": true,
+  "description": "Verification suite for CBA (index.html). Run: npm install && npm test",
+  "scripts": {
+    "test": "node run-all.js"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}
