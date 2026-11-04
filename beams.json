@@ -1,0 +1,7 @@
+{
+  "schema": "lumax-cba/beams@1",
+  "revision": 0,
+  "updated": "2026-11-03T00:00:00.000Z",
+  "note": "Beam library for CBA (https://lumax-energy.github.io/lumax-cba/). Units: mm, mm2, mm3, mm4, kg/m. Edit it on the app's Beams tab, or by hand here: names must be unique, and I, Z and A must be greater than zero.",
+  "beams": []
+}

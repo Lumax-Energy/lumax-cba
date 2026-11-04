@@ -124,6 +124,8 @@ table { border-collapse: collapse; }
 .btn:hover { box-shadow: var(--shadow-border-hover); background: var(--color-elevated); }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
+/* Busy (saving, loading): looks disabled but keeps keyboard focus; the handler ignores it. */
+.btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .btn.primary { background: var(--color-primary); color: var(--color-primary-fg); box-shadow: none; }
 .btn.primary:hover { background: var(--color-accent); }
 .btn.ghost { box-shadow: none; color: var(--color-muted); }
@@ -347,6 +349,8 @@ table { border-collapse: collapse; }
 }
 
 .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.conflicts { margin-top: 0.75rem; }
 
 .viewbar { display: grid; gap: 0.75rem; }
 .seg {
@@ -405,10 +409,55 @@ table { border-collapse: collapse; }
 .min-64 { min-width: 64rem; }
 .plot-check { width: 16px; height: 16px; accent-color: var(--color-accent); }
 
+/* Beams tab */
+.beams-grid { display: grid; gap: 1rem; }
+@media (min-width: 1024px) { .beams-grid { grid-template-columns: 1fr 1fr; } }
+.beams-grid > * { min-width: 0; }
+.beam-form-grid { display: grid; gap: 1rem; }
+@media (min-width: 900px) { .beam-form-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); } }
+.beam-calc-col { display: grid; gap: 0.75rem; align-content: start; }
+.beam-preview { border-radius: var(--radius-md); background: var(--color-inset); box-shadow: var(--shadow-border); padding: 0.5rem; }
+.beam-svg { display: block; width: 100%; max-width: 15rem; height: auto; margin: 0 auto; aspect-ratio: 1; }
+.beam-shape { fill: color-mix(in oklab, var(--color-accent) 28%, transparent); stroke: var(--color-accent); stroke-width: 1.2; stroke-linejoin: round; }
+.beam-axis { stroke: var(--color-moment); stroke-width: 1; stroke-dasharray: 5 4; }
+.beam-svg-empty { fill: var(--color-subtle); font-size: 9px; font-family: var(--font-sans); }
+.beam-props td.off { color: var(--color-warn); font-weight: 500; }
+.fields-3 { grid-template-columns: 1fr 1fr; }
+@media (min-width: 640px) { .fields-3 { grid-template-columns: 1fr 1fr 1fr; } }
+.name-row { display: flex; gap: 0.5rem; }
+.name-row .field { flex: 1; min-width: 0; }
+.field.area { height: auto; min-height: 7rem; padding: 0.5rem 0.625rem; resize: vertical; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.5; }
+.paste-box { margin-top: 0.75rem; }
+.form-actions { margin-top: 1rem; }
+.note { margin-top: 0.75rem; font-size: 0.75rem; color: var(--color-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; }
+.note.ok { color: var(--color-ok); }
+.note.warn { color: var(--color-warn); }
+.note.danger { color: var(--color-danger); }
+.note .mono { font-family: var(--font-mono); }
+.link { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.link:hover { color: var(--color-fg); }
+.btn.sm-btn { height: 30px; padding: 0 0.5rem; font-size: 0.6875rem; }
+.btn.danger { color: var(--color-danger); box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-danger) 55%, transparent); }
+.row-actions { display: flex; gap: 0.375rem; justify-content: flex-end; }
+.beam-name { display: block; font-weight: 500; color: var(--color-fg); }
+.beam-note { display: block; font-size: var(--text-2xs); max-width: 16rem; overflow: hidden; text-overflow: ellipsis; }
+.empty { margin-top: 1rem; padding: 1.25rem; border-radius: var(--radius-md); background: var(--color-inset); text-align: center; font-size: 0.875rem; }
+.token-row { margin-top: 0.75rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.howto { margin-top: 0.5rem; font-size: 0.75rem; color: var(--color-muted); }
+.howto summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; color: var(--color-fg); }
+.howto ol { margin: 0.25rem 0 0.5rem; padding-left: 1.25rem; display: grid; gap: 0.375rem; }
+.howto b { color: var(--color-fg); font-weight: 500; }
+.tab-dot {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; margin-left: 0.375rem;
+  padding: 0 0.3rem; border-radius: 999px; font-size: var(--text-2xs); font-weight: 600;
+  background: color-mix(in oklab, var(--color-warn) 22%, transparent); color: var(--color-warn);
+}
+
   </style>
 </head>
 <body>
   <div id="app" class="app"></div>
+  <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
   <script>
 "use strict";
 /** CBA FEA engine — Continuous Beam Analysis · Lumax Energy · plain JS, no deps. */
@@ -418,24 +467,434 @@ const SUPPORT_TYPES = ["Free", "Pinned", "Roller", "Fixed"];
 const LOAD_TYPES = ["Point", "Moment", "UDL"];
 const MATERIALS = ["Steel", "Aluminium", "Custom"];
 
-const SECTION_LIBRARY = [
-  { name: "Custom", mass: null, h: null, tw: null, tf: null, I: 0, Z: 0, A: 0, Av: 0 },
-  { name: "IPE 100", mass: 8.1, h: 100, tw: 4.1, tf: 5.7, I: 1710000, Z: 34200, A: 1030, Av: 410 },
-  { name: "IPE 120", mass: 10.4, h: 120, tw: 4.4, tf: 6.3, I: 3180000, Z: 53000, A: 1320, Av: 528 },
-  { name: "IPE 140", mass: 12.9, h: 140, tw: 4.7, tf: 6.9, I: 5410000, Z: 77300, A: 1640, Av: 658 },
-  { name: "IPE 160", mass: 15.8, h: 160, tw: 5.0, tf: 7.4, I: 8690000, Z: 108700, A: 2010, Av: 800 },
-  { name: "IPE 180", mass: 18.8, h: 180, tw: 5.3, tf: 8.0, I: 13170000, Z: 146300, A: 2390, Av: 954 },
-  { name: "IPE 200", mass: 22.4, h: 200, tw: 5.6, tf: 8.5, I: 19430000, Z: 194300, A: 2850, Av: 1120 },
-  { name: "IPE 220", mass: 26.2, h: 220, tw: 5.9, tf: 9.2, I: 27720000, Z: 252000, A: 3340, Av: 1298 },
-  { name: "IPE 240", mass: 30.7, h: 240, tw: 6.2, tf: 9.8, I: 38920000, Z: 324300, A: 3910, Av: 1488 },
-  { name: "IPE 270", mass: 36.1, h: 270, tw: 6.6, tf: 10.2, I: 57900000, Z: 428900, A: 4590, Av: 1782 },
-  { name: "IPE 300", mass: 42.2, h: 300, tw: 7.1, tf: 10.7, I: 83560000, Z: 557100, A: 5380, Av: 2130 },
-  { name: "IPE 330", mass: 49.1, h: 330, tw: 7.5, tf: 11.5, I: 117700000, Z: 713100, A: 6260, Av: 2475 },
-  { name: "IPE 360", mass: 57.1, h: 360, tw: 8.0, tf: 12.7, I: 162700000, Z: 903600, A: 7270, Av: 2880 },
-  { name: "IPE 400", mass: 66.3, h: 400, tw: 8.6, tf: 13.5, I: 231300000, Z: 1156000, A: 8450, Av: 3440 },
-  { name: "IPE 450", mass: 77.6, h: 450, tw: 9.4, tf: 14.6, I: 337400000, Z: 1500000, A: 9880, Av: 4230 },
-  { name: "IPE 500", mass: 90.7, h: 500, tw: 10.2, tf: 16.0, I: 482000000, Z: 1928000, A: 11550, Av: 5100 },
+const CUSTOM_SECTION = { name: "Custom", mass: null, h: null, I: 0, Z: 0, A: 0, Av: 0 };
+// The beam library is not hardcoded: it lives in beams.json in the GitHub repository and is
+// edited on the Beams tab. "Custom" (the model's own I, Z, A, Av) is always first. The array
+// is filled in place by setSectionLibrary() so every reference to it sees the current list.
+const SECTION_LIBRARY = [CUSTOM_SECTION];
+const BEAM_MATERIALS = ["Steel", "Aluminium", "Other"];
+const BEAM_NAME_MAX = 60;
+
+function isFinitePositive(v) {
+  return typeof v === "number" && Number.isFinite(v) && v > 0;
+}
+function optNum(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Returns a clean beam record, or null when the entry cannot be used for analysis.
+function normaliseBeam(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  // Runs of spaces and line breaks (a wrapped spreadsheet cell) become one space, so names that
+  // look the same are the same.
+  const name = typeof raw.name === "string" ? raw.name.replace(/\s+/g, " ").trim() : "";
+  if (!name || name.length > BEAM_NAME_MAX || name.toLowerCase() === "custom") return null;
+  const I = Number(raw.I), Z = Number(raw.Z), A = Number(raw.A);
+  const Av = raw.Av === undefined || raw.Av === null || raw.Av === "" ? 0 : Number(raw.Av);
+  if (!isFinitePositive(I) || !isFinitePositive(Z) || !isFinitePositive(A) || !Number.isFinite(Av) || Av < 0) return null;
+  const beam = { name, shape: typeof raw.shape === "string" ? raw.shape : "manual" };
+  if (raw.dims && typeof raw.dims === "object") {
+    const dims = {};
+    for (const [k, v] of Object.entries(raw.dims)) if (typeof v === "number" && Number.isFinite(v)) dims[k] = v;
+    if (Object.keys(dims).length) beam.dims = dims;
+  }
+  beam.material = matchMaterial(raw.material) || "Other";
+  beam.h = optNum(raw.h);
+  beam.mass = optNum(raw.mass);
+  Object.assign(beam, { A, I, Z, Av });
+  for (const k of ["source", "notes", "addedBy", "updated"]) {
+    if (typeof raw[k] === "string" && raw[k].trim()) beam[k] = raw[k].trim();
+  }
+  // Extra fields someone added to beams.json by hand (a steel grade, a part number, a list of
+  // tags) are kept as they are, so editing or saving from the app does not strip them.
+  let extras = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (BEAM_KNOWN_KEYS.has(k) || k.length > 100 || extras >= 200 || v === undefined || typeof v === "function") continue;
+    if (typeof v === "number" && !Number.isFinite(v)) continue;
+    let json;
+    try {
+      json = JSON.stringify(v);
+    } catch {
+      continue;
+    }
+    if (json === undefined || json.length > 100000) continue;
+    beam[k] = v !== null && typeof v === "object" ? JSON.parse(json) : v;
+    extras++;
+  }
+  return beam;
+}
+
+// "steel", "Aluminum", "ALU" and so on map to the app's names; anything else is not a material
+// the app knows (null).
+function matchMaterial(v) {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  if (s === "steel") return "Steel";
+  if (s === "aluminium" || s === "aluminum" || s === "alu") return "Aluminium";
+  if (s === "other") return "Other";
+  return null;
+}
+
+// Fields a beam record carries that the app does not edit itself (hand-added grade, tags, …).
+function beamExtras(b) {
+  const out = {};
+  for (const [k, v] of Object.entries(b || {})) if (!BEAM_KNOWN_KEYS.has(k)) out[k] = v;
+  return out;
+}
+
+// Physical consistency of a set of section properties (mm units). With r the radius of gyration
+// and c the distance to the extreme fibre, A·I/Z² = (c/r)². c ≥ r for any section, so
+// Z² ≤ A·I; and c/r stays small for beam sections (about 1.1 for a wide-flange I, 1.7 for a
+// solid bar, 2 for a solid round, up to about 3.7 for a tee cut from a wide column section, where
+// A·I/Z² reaches 13.7), so A·I ≤ 20·Z², while a table read in 10³ units by mistake gives 1000 or
+// more. (A table read in cm instead of mm, or the reverse, keeps the ratio: only a depth or a
+// mass shows it.) The extreme fibre I/Z lies
+// between h/2 and h. A mass, with a known material, must match the area. Values that break these
+// are a unit or typing slip (cm⁴ against mm³, a table read in the wrong units) or a thousands
+// separator read as a decimal mark.
+const BEAM_MAX_SHAPE_RATIO = 20;
+function beamPlausibility({ A, I, Z, Av, h, mass, material }) {
+  const problems = [];
+  if (!(A > 0 && I > 0 && Z > 0)) return problems;
+  const units = "Check that A is in mm², I in mm⁴ and Z in mm³.";
+  if (Z * Z > 1.02 * A * I) {
+    problems.push(`Z is too large for this A and I (Z² must not exceed A × I). ${units}`);
+  } else if (A * I > BEAM_MAX_SHAPE_RATIO * Z * Z) {
+    problems.push(`A and I are too large for this Z (A × I is ${formatNum((A * I) / (Z * Z), 1)} × Z²; beam sections stay under ${BEAM_MAX_SHAPE_RATIO} × Z²). ${units}`);
+  }
+  const density = BEAM_DENSITY[material];
+  if (mass > 0 && density) {
+    const ratio = mass / (A * 1e-6 * density);
+    if (ratio < 0.7 || ratio > 1.4) {
+      problems.push(`The mass ${formatNum(mass, 3)} kg/m does not match A = ${formatNum(A, 1)} mm² for ${material.toLowerCase()} (${formatNum(A * 1e-6 * density, 3)} kg/m). Check the units of A, the mass and the material.`);
+    }
+  }
+  if (h > 0) {
+    const c = I / Z;
+    if (c < 0.475 * h || c > 1.05 * h) {
+      problems.push(`I / Z = ${formatNum(c, 1)} mm, but for a section ${formatNum(h, 1)} mm deep it must lie between h/2 and h. Check the units of I and Z, and h.`);
+    }
+  }
+  if (Av > 1.02 * A) problems.push("Av is larger than A.");
+  return problems;
+}
+const BEAM_KNOWN_KEYS = new Set(["name", "shape", "dims", "material", "h", "mass", "A", "I", "Z", "Av", "source", "notes", "addedBy", "updated", "embedded", "missing"]);
+
+// Parses the beams.json document. Bad entries and repeated names are dropped and counted, never
+// guessed at.
+function normaliseBeamFile(doc) {
+  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.beams) ? doc.beams : null;
+  if (!list) return null;
+  const beams = [];
+  const seen = new Set();
+  let skipped = 0;
+  for (const raw of list) {
+    const b = normaliseBeam(raw);
+    if (!b || seen.has(b.name.toLowerCase())) {
+      skipped++;
+      continue;
+    }
+    seen.add(b.name.toLowerCase());
+    beams.push(b);
+  }
+  const revision = Number.isInteger(doc?.revision) && doc.revision >= 0 ? doc.revision : 0;
+  const updated = typeof doc?.updated === "string" ? doc.updated : null;
+  return { revision, updated, beams, skipped };
+}
+
+function setSectionLibrary(beams) {
+  SECTION_LIBRARY.splice(1, SECTION_LIBRARY.length - 1, ...beams);
+}
+
+// Pending library edits are kept as operations so they can be replayed on top of whatever is on
+// GitHub at the moment of saving; a colleague's additions made in the meantime are kept.
+function applyBeamOps(beams, ops) {
+  let out = beams.slice();
+  for (const op of ops || []) {
+    if (op?.op === "delete") {
+      // Names are unique regardless of case, so a delete still finds a beam re-capitalised since.
+      out = out.filter((b) => b.name.toLowerCase() !== String(op.name).toLowerCase());
+    } else if (op?.op === "upsert" && op.beam) {
+      const key = op.from ?? op.beam.name;
+      const at = out.findIndex((b) => b.name === key);
+      out = out.filter((b) => b.name !== key && b.name.toLowerCase() !== op.beam.name.toLowerCase());
+      if (at >= 0) out.splice(Math.min(at, out.length), 0, op.beam);
+      else out.push(op.beam);
+    }
+  }
+  return out;
+}
+
+function sameBeam(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function beamDiff(before, after) {
+  const was = new Map(before.map((b) => [b.name, b]));
+  const now = new Map(after.map((b) => [b.name, b]));
+  const added = after.filter((b) => !was.has(b.name)).map((b) => b.name);
+  const removed = before.filter((b) => !now.has(b.name)).map((b) => b.name);
+  const changed = after.filter((b) => was.has(b.name) && !sameBeam(was.get(b.name), b)).map((b) => b.name);
+  return { added, removed, changed, count: added.length + removed.length + changed.length };
+}
+
+/* ---- Section-property helper ------------------------------------------------------------
+   Major-axis properties of sections that are symmetric about the bending axis, so the top and
+   bottom fibres share one elastic modulus Z, as the analysis assumes. Every shape is built
+   from rectangles and annular circular sectors (bends, root fillets as square minus quarter
+   disc) whose area, first and second moments about y = 0 have exact closed forms. y is measured
+   up from the underside; units are mm. */
+const BEAM_SHAPES = [
+  { id: "i", label: "I / H section (rolled)", prefix: "I", dims: [["h", "Depth h"], ["b", "Flange width b"], ["tw", "Web thickness tw"], ["tf", "Flange thickness tf"], ["r", "Root radius r"]], av: "h × tw" },
+  { id: "channel", label: "Channel, parallel flange (rolled)", prefix: "PFC", dims: [["h", "Depth h"], ["b", "Flange width b"], ["tw", "Web thickness tw"], ["tf", "Flange thickness tf"], ["r", "Root radius r"]], av: "h × tw" },
+  { id: "lipped", label: "Lipped channel (cold-formed C)", prefix: "C", dims: [["h", "Depth h"], ["b", "Flange width b"], ["c", "Lip length c (0 = plain)"], ["t", "Thickness t"], ["ri", "Inside bend radius ri"]], av: "h × t" },
+  { id: "rhs", label: "RHS / SHS (hollow)", prefix: "RHS", dims: [["h", "Depth h"], ["b", "Width b"], ["t", "Wall thickness t"], ["ro", "Outside corner radius ro"]], av: "2 × h × t" },
+  { id: "chs", label: "CHS (circular hollow)", prefix: "CHS", dims: [["d", "Outside diameter D"], ["t", "Wall thickness t"]], av: "2A / π" },
+  { id: "rect", label: "Solid rectangle / flat bar", prefix: "Bar", dims: [["h", "Depth h"], ["b", "Width b"]], av: "A" },
+  { id: "manual", label: "Enter properties directly", prefix: "", dims: [], av: "" },
 ];
+const BEAM_DENSITY = { Steel: 7850, Aluminium: 2700 };
+
+function rectMoments(width, y0, y1) {
+  return { A: width * (y1 - y0), S: (width * (y1 * y1 - y0 * y0)) / 2, J: (width * (y1 ** 3 - y0 ** 3)) / 3 };
+}
+// Annular sector ri..ro, angles th0..th1 (radians, from +x, anticlockwise), centre at height cy.
+function sectorMoments(cy, ri, ro, th0, th1) {
+  const A = ((th1 - th0) * (ro * ro - ri * ri)) / 2;
+  const Q = ((ro ** 3 - ri ** 3) / 3) * (Math.cos(th0) - Math.cos(th1));
+  const Ic = ((ro ** 4 - ri ** 4) / 4) * ((th1 - th0) / 2 - (Math.sin(2 * th1) - Math.sin(2 * th0)) / 4);
+  return { A, S: cy * A + Q, J: cy * cy * A + 2 * cy * Q + Ic };
+}
+// Root fillet of radius r filling the corner whose square spans y0..y0 + r; the arc's centre is
+// at the far corner (cy) and the fillet is the square less the quarter disc.
+function filletMoments(y0, r, upper) {
+  if (!(r > 0)) return { A: 0, S: 0, J: 0 };
+  const sq = rectMoments(r, y0, y0 + r);
+  const disc = upper ? sectorMoments(y0, 0, r, 0, Math.PI / 2) : sectorMoments(y0 + r, 0, r, Math.PI, 1.5 * Math.PI);
+  return { A: sq.A - disc.A, S: sq.S - disc.S, J: sq.J - disc.J };
+}
+function sumMoments(parts) {
+  return parts.reduce((t, p) => ({ A: t.A + p.A, S: t.S + p.S, J: t.J + p.J }), { A: 0, S: 0, J: 0 });
+}
+function roundedRectParts(width, height, R, y0) {
+  // A rectangle of width × height with corner radius R, its underside at y0.
+  if (!(R > 0)) return [rectMoments(width, y0, y0 + height)];
+  return [
+    rectMoments(width, y0 + R, y0 + height - R),
+    rectMoments(width - 2 * R, y0, y0 + R),
+    rectMoments(width - 2 * R, y0 + height - R, y0 + height),
+    sectorMoments(y0 + R, 0, R, Math.PI, 1.5 * Math.PI),
+    sectorMoments(y0 + R, 0, R, 1.5 * Math.PI, 2 * Math.PI),
+    sectorMoments(y0 + height - R, 0, R, 0, Math.PI / 2),
+    sectorMoments(y0 + height - R, 0, R, Math.PI / 2, Math.PI),
+  ];
+}
+
+function shapeSpec(id) {
+  return BEAM_SHAPES.find((s) => s.id === id) || null;
+}
+
+// Checks the dimensions of a shape. Returns a list of problems (empty when usable).
+function shapeProblems(shape, d) {
+  const spec = shapeSpec(shape);
+  if (!spec) return ["Unknown shape."];
+  const problems = [];
+  for (const [k, label] of spec.dims) {
+    const v = d?.[k];
+    const zeroOk = k === "r" || k === "c" || k === "ri" || k === "ro";
+    if (typeof v !== "number" || !Number.isFinite(v)) problems.push(`Enter ${label.replace(/ \(.*\)$/, "")}.`);
+    else if (zeroOk ? v < 0 : v <= 0) problems.push(`${label.replace(/ \(.*\)$/, "")} must be ${zeroOk ? "zero or more" : "greater than zero"}.`);
+  }
+  if (problems.length) return problems;
+  const { h, b, tw, tf, r, c, t, ri, ro } = d;
+  if (shape === "i") {
+    if (2 * tf >= h) problems.push("Two flange thicknesses must be less than the depth.");
+    if (tw >= b) problems.push("The web must be thinner than the flange width.");
+    if (tw + 2 * r > b) problems.push("Web plus two root radii is wider than the flange.");
+    if (2 * tf + 2 * r > h) problems.push("Flanges plus root radii are deeper than the section.");
+  } else if (shape === "channel") {
+    if (2 * tf >= h) problems.push("Two flange thicknesses must be less than the depth.");
+    if (tw >= b) problems.push("The web must be thinner than the flange width.");
+    if (tw + r > b) problems.push("Web plus root radius is wider than the flange.");
+    if (2 * tf + 2 * r > h) problems.push("Flanges plus root radii are deeper than the section.");
+  } else if (shape === "lipped") {
+    const Ro = ri + t;
+    if (2 * Ro > h) problems.push("Depth must be at least 2 × (ri + t).");
+    if (c > 0 && 2 * Ro > b) problems.push("Flange width must be at least 2 × (ri + t) when there is a lip.");
+    if (c === 0 && Ro > b) problems.push("Flange width must be at least ri + t.");
+    if (c > 0 && c < Ro) problems.push("Lip must be at least ri + t long (or 0 for a plain channel).");
+    if (2 * c > h) problems.push("Lips longer than half the depth would overlap.");
+  } else if (shape === "rhs") {
+    if (2 * t >= h || 2 * t >= b) problems.push("Wall thickness must be less than half the depth and width.");
+    if (2 * ro > h || 2 * ro > b) problems.push("Corner radius must be at most half the depth and width.");
+  } else if (shape === "chs") {
+    if (2 * t >= d.d) problems.push("Wall thickness must be less than the radius.");
+  }
+  return problems;
+}
+
+// Section properties from dimensions. { ok, problems, A, I, Z, Av, h, yc }.
+function sectionFromShape(shape, dims) {
+  const problems = shapeProblems(shape, dims);
+  if (shape === "manual") return { ok: false, problems: ["Enter the properties directly."] };
+  if (problems.length) return { ok: false, problems };
+  const d = dims;
+  let parts;
+  let depth;
+  let Av;
+  if (shape === "i" || shape === "channel") {
+    const { h, b, tw, tf, r } = d;
+    const n = shape === "i" ? 2 : 1; // fillets per flange
+    depth = h;
+    parts = [rectMoments(b, 0, tf), rectMoments(b, h - tf, h), rectMoments(tw, tf, h - tf)];
+    for (let k = 0; k < n; k++) parts.push(filletMoments(tf, r, false), filletMoments(h - tf - r, r, true));
+    Av = h * tw;
+  } else if (shape === "lipped") {
+    const { h, b, c, t, ri } = d;
+    const Ro = ri + t;
+    depth = h;
+    const bend = (cy, lower) => (lower ? sectorMoments(cy, ri, Ro, Math.PI, 1.5 * Math.PI) : sectorMoments(cy, ri, Ro, Math.PI / 2, Math.PI));
+    parts = [
+      rectMoments(t, Ro, h - Ro), // web
+      bend(Ro, true), bend(h - Ro, false), // web-to-flange bends
+    ];
+    if (c > 0) {
+      parts.push(
+        rectMoments(b - 2 * Ro, 0, t), rectMoments(b - 2 * Ro, h - t, h), // flanges between bends
+        bend(Ro, true), bend(h - Ro, false), // flange-to-lip bends (same heights as the web bends)
+        rectMoments(t, Ro, c), rectMoments(t, h - c, h - Ro), // lips
+      );
+    } else {
+      parts.push(rectMoments(b - Ro, 0, t), rectMoments(b - Ro, h - t, h));
+    }
+    Av = h * t;
+  } else if (shape === "rhs") {
+    const { h, b, t, ro } = d;
+    const rIn = Math.max(ro - t, 0);
+    depth = h;
+    const outer = sumMoments(roundedRectParts(b, h, ro, 0));
+    const inner = sumMoments(roundedRectParts(b - 2 * t, h - 2 * t, rIn, t));
+    parts = [outer, { A: -inner.A, S: -inner.S, J: -inner.J }];
+    Av = 2 * h * t;
+  } else if (shape === "chs") {
+    const D = d.d;
+    const di = D - 2 * d.t;
+    const A = (Math.PI * (D * D - di * di)) / 4;
+    const I = (Math.PI * (D ** 4 - di ** 4)) / 64;
+    return { ok: true, problems: [], A, I, Z: I / (D / 2), Av: (2 * A) / Math.PI, h: D, yc: D / 2 };
+  } else if (shape === "rect") {
+    const { h, b } = d;
+    return { ok: true, problems: [], A: b * h, I: (b * h ** 3) / 12, Z: (b * h * h) / 6, Av: b * h, h, yc: h / 2 };
+  }
+  const tot = sumMoments(parts);
+  const yc = tot.S / tot.A;
+  const I = tot.J - tot.A * yc * yc;
+  const Z = I / Math.max(yc, depth - yc);
+  return { ok: true, problems: [], A: tot.A, I, Z, Av, h: depth, yc };
+}
+
+// Closed outline(s) of a shape as polygons (arcs sampled with `seg` segments per quarter turn),
+// y up from the underside. Used for the preview drawing, and by the tests as an independent
+// check of sectionFromShape() by Green's theorem.
+function sectionOutline(shape, d, seg = 8) {
+  const arc = (cx, cy, r, a0, a1) => {
+    if (!(r > 0)) return [[cx, cy]];
+    const n = Math.max(1, Math.ceil((Math.abs(a1 - a0) / (Math.PI / 2)) * seg));
+    return Array.from({ length: n + 1 }, (_, i) => {
+      const a = a0 + ((a1 - a0) * i) / n;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    });
+  };
+  const P = Math.PI;
+  const roundRect = (x0, y0, w, hh, R) => [
+    ...arc(x0 + w - R, y0 + R, R, -P / 2, 0),
+    ...arc(x0 + w - R, y0 + hh - R, R, 0, P / 2),
+    ...arc(x0 + R, y0 + hh - R, R, P / 2, P),
+    ...arc(x0 + R, y0 + R, R, P, 1.5 * P),
+  ];
+  if (shape === "i") {
+    const { h, b, tw, tf, r } = d;
+    const xw = tw / 2;
+    return [[
+      [-b / 2, 0], [b / 2, 0], [b / 2, tf],
+      ...arc(xw + r, tf + r, r, 1.5 * P, P),
+      ...arc(xw + r, h - tf - r, r, P, P / 2),
+      [b / 2, h - tf], [b / 2, h], [-b / 2, h], [-b / 2, h - tf],
+      ...arc(-xw - r, h - tf - r, r, P / 2, 0),
+      ...arc(-xw - r, tf + r, r, 0, -P / 2),
+      [-b / 2, tf],
+    ]];
+  }
+  if (shape === "channel") {
+    const { h, b, tw, tf, r } = d;
+    return [[
+      [0, 0], [b, 0], [b, tf],
+      ...arc(tw + r, tf + r, r, 1.5 * P, P),
+      ...arc(tw + r, h - tf - r, r, P, P / 2),
+      [b, h - tf], [b, h], [0, h],
+    ]];
+  }
+  if (shape === "lipped") {
+    const { h, b, c, t, ri } = d;
+    const Ro = ri + t;
+    if (c > 0) {
+      return [[
+        [b, c],
+        ...arc(b - Ro, Ro, Ro, 0, -P / 2),
+        ...arc(Ro, Ro, Ro, -P / 2, -P),
+        ...arc(Ro, h - Ro, Ro, P, P / 2),
+        ...arc(b - Ro, h - Ro, Ro, P / 2, 0),
+        [b, h - c], [b - t, h - c],
+        ...arc(b - Ro, h - Ro, ri, 0, P / 2),
+        ...arc(Ro, h - Ro, ri, P / 2, P),
+        ...arc(Ro, Ro, ri, P, 1.5 * P),
+        ...arc(b - Ro, Ro, ri, 1.5 * P, 2 * P),
+        [b - t, c],
+      ]];
+    }
+    return [[
+      [b, t], [b, 0],
+      ...arc(Ro, Ro, Ro, -P / 2, -P),
+      ...arc(Ro, h - Ro, Ro, P, P / 2),
+      [b, h], [b, h - t],
+      ...arc(Ro, h - Ro, ri, P / 2, P),
+      ...arc(Ro, Ro, ri, P, 1.5 * P),
+    ]];
+  }
+  if (shape === "rhs") {
+    const { h, b, t, ro } = d;
+    return [roundRect(0, 0, b, h, ro), roundRect(t, t, b - 2 * t, h - 2 * t, Math.max(ro - t, 0))];
+  }
+  if (shape === "chs") {
+    const R = d.d / 2;
+    return [arc(R, R, R, 0, 2 * P).slice(0, -1), arc(R, R, R - d.t, 0, 2 * P).slice(0, -1)];
+  }
+  if (shape === "rect") return [[[0, 0], [d.b, 0], [d.b, d.h], [0, d.h]]];
+  return [];
+}
+
+// Suggested library name from the dimensions, e.g. "C 150x65x20x2.0".
+function suggestBeamName(shape, d) {
+  const spec = shapeSpec(shape);
+  if (!spec || shape === "manual") return "";
+  const ok = (v) => typeof v === "number" && Number.isFinite(v);
+  const f = (v) => (ok(v) ? String(parseFloat(v.toFixed(2))) : "?");
+  // Wall thickness with as many decimals as it has (0.75, 1.15), and at least one (2.0).
+  const t = (v) => {
+    if (!ok(v)) return "?";
+    const s = String(parseFloat(v.toFixed(3)));
+    return s.includes(".") ? s : `${s}.0`;
+  };
+  let name = "";
+  if (shape === "i" || shape === "channel") name = `${spec.prefix} ${f(d.h)}x${f(d.b)}x${f(d.tw)}x${f(d.tf)}`;
+  else if (shape === "lipped") name = d.c > 0 ? `C ${f(d.h)}x${f(d.b)}x${f(d.c)}x${t(d.t)}` : `C ${f(d.h)}x${f(d.b)}x${t(d.t)}`;
+  else if (shape === "rhs") name = `${d.h === d.b ? "SHS" : "RHS"} ${f(d.h)}x${f(d.b)}x${t(d.t)}`;
+  else if (shape === "chs") name = `CHS ${f(d.d)}x${t(d.t)}`;
+  else if (shape === "rect") name = `Bar ${f(d.h)}x${f(d.b)}`;
+  // No suggestion until every dimension in the name is known ("C ?x65" is no name).
+  return name.includes("?") ? "" : name;
+}
 
 const CASE_LEGEND = {
   G: "Permanent actions and automatic self-weight",
@@ -456,11 +915,33 @@ function materialDensity(material, customDensity) {
   if (material === "Aluminium") return 2700;
   return customDensity;
 }
-function resolveSection(name, custom) {
-  if (name === "Custom") return { name: "Custom", mass: null, h: null, tw: null, tf: null, ...custom };
+// Library first, so a corrected library entry reaches every model; then the copy the model
+// carries of a section it uses (model.sectionDefs), so a model whose section has left the
+// library — or a file from a colleague — still analyses with the properties it was built with.
+// A name found in neither is reported as missing; it is never quietly replaced by "Custom".
+function resolveSection(name, custom, embedded) {
+  // A model file without a section name (hand-written, or older than sections) means Custom,
+  // which is also what its select shows.
+  if (isCustomName(name)) return { ...CUSTOM_SECTION, ...custom, name: "Custom" };
   const found = SECTION_LIBRARY.find((s) => s.name === name);
-  if (!found) return { name: "Custom", mass: null, h: null, tw: null, tf: null, ...custom };
-  return found;
+  if (found) return found;
+  const kept = embedded && Object.prototype.hasOwnProperty.call(embedded, name) ? normaliseBeam({ ...embedded[name], name }) : null;
+  if (kept) return { ...kept, embedded: true };
+  return { name: String(name), missing: true, mass: null, h: null, I: 0, Z: 0, A: 0, Av: 0 };
+}
+
+// "Custom", in any capitals, or no name at all.
+function isCustomName(name) {
+  return name === undefined || name === null || String(name).trim() === "" || String(name).trim().toLowerCase() === "custom";
+}
+
+// The analysis properties (A, I, Z, Av) in which two section records differ.
+const SECTION_PROPS = ["A", "I", "Z", "Av"];
+function sectionPropsDiffer(a, b) {
+  return SECTION_PROPS.filter((k) => {
+    const x = Number(a?.[k] ?? 0), y = Number(b?.[k] ?? 0);
+    return !(Math.abs(x - y) <= 1e-6 * Math.max(Math.abs(x), Math.abs(y), 1e-12));
+  });
 }
 
 function formatNum(v, digits = 3) {
@@ -572,14 +1053,14 @@ function simpleThreeSpan() {
     id: id("E", i + 1),
     description: `Span ${i + 1}`,
     length,
-    section: "IPE 200",
+    section: "Custom",
   }));
   return {
     nElements: 3,
     material: "Steel",
     customE: 200000,
     customDensity: 7850,
-    defaultSection: "IPE 200",
+    defaultSection: "Custom",
     customI: 19430000,
     customZ: 194300,
     customA: 2850,
@@ -797,8 +1278,11 @@ function analyze(model) {
   for (let i = 0; i < nEl; i++) {
     const L = Math.max(elements[i]?.length ?? 0, 0);
     nodeX.push(nodeX[i] + L);
-    const sec = resolveSection(elements[i]?.section || model.defaultSection, custom);
-    sectionAt.push({ I: sec.I, Z: sec.Z, A: sec.A, Av: sec.Av, name: sec.name });
+    const sec = resolveSection(elements[i]?.section || model.defaultSection, custom, model.sectionDefs);
+    sectionAt.push({
+      I: sec.I, Z: sec.Z, A: sec.A, Av: sec.Av, name: sec.name,
+      missing: !!sec.missing, embedded: !!sec.embedded, material: sec.name === "Custom" ? null : sec.material ?? null,
+    });
   }
   const totalLength = nodeX[nEl];
   const invalidLoads = [];
@@ -810,11 +1294,53 @@ function analyze(model) {
   const nFixed = supports.filter((s) => s === "Fixed").length;
   const supportStable = nVert >= 2 || nFixed >= 1;
   const warnings = [];
+  // Set where the geometry warnings are raised; warning text quotes section names, so it is
+  // never searched to decide the status.
+  let badGeometry = totalLength <= 0;
   if (totalLength <= 0) warnings.push("Total beam length is zero.");
   if (model.nElements > 24) warnings.push(`Model declares ${model.nElements} elements; only the first 24 are analysed.`);
+  const missingSections = [];
+  const staleSections = [];
   for (let i = 0; i < nEl; i++) {
-    if ((elements[i]?.length ?? 0) <= 0) warnings.push(`Element ${i + 1} has non-positive length.`);
-    if (sectionAt[i].I <= 0) warnings.push(`Element ${i + 1} has I ≤ 0.`);
+    const sec = sectionAt[i];
+    if (sec.missing) {
+      missingSections.push(sec.name);
+      warnings.push(`Element ${i + 1} uses section "${sec.name}", which is not in the beam library and is not saved with this model. Add it on the Beams tab or choose another section.`);
+    } else if (sec.embedded) {
+      warnings.push(`Element ${i + 1}: section "${sec.name}" is not in the beam library; using the properties saved with this model.`);
+    }
+    if (sec.material && (sec.material === "Steel" || sec.material === "Aluminium") && model.material !== "Custom" && sec.material !== model.material) {
+      warnings.push(`Element ${i + 1}: section "${sec.name}" is listed as ${sec.material}, but the model material is ${model.material}.`);
+    }
+  }
+  // A library beam whose values differ from the copy this model was saved with: a colleague's
+  // file meeting a different local entry, or a beam corrected since. The library wins, visibly.
+  const defs = model.sectionDefs && typeof model.sectionDefs === "object" ? model.sectionDefs : {};
+  for (const name of new Set(sectionAt.filter((s) => !s.missing && !s.embedded && s.name !== "Custom").map((s) => s.name))) {
+    if (!Object.prototype.hasOwnProperty.call(defs, name)) continue;
+    const libSec = SECTION_LIBRARY.find((s) => s.name === name);
+    const keys = sectionPropsDiffer(libSec, defs[name]);
+    if (!keys.length) continue;
+    staleSections.push(name);
+    const units = { A: "mm²", I: "mm⁴", Z: "mm³", Av: "mm²" };
+    const what = keys.map((k) => `${k} ${formatNum(libSec[k], 0)} vs ${formatNum(Number(defs[name][k]), 0)} ${units[k]}`).join(", ");
+    warnings.push(`Section "${name}": the beam library's values differ from the copy saved with this model (${what}). The library values are used; see the Beams tab.`);
+  }
+  const defaultSec = resolveSection(model.defaultSection, custom, model.sectionDefs);
+  if (defaultSec.missing) {
+    warnings.push(`The default section "${defaultSec.name}" is not in the beam library and is not saved with this model, so a new element would have no section. Choose another default on the Geometry tab, or add the beam on the Beams tab.`);
+  }
+  const defaultI = defaultSec.missing ? null : defaultSec.I;
+  for (let i = 0; i < nEl; i++) {
+    if ((elements[i]?.length ?? 0) <= 0) {
+      warnings.push(`Element ${i + 1} has non-positive length.`);
+      badGeometry = true;
+    }
+    if (sectionAt[i].missing) continue;
+    if (sectionAt[i].I <= 0) {
+      warnings.push(`Element ${i + 1} has I ≤ 0.`);
+      badGeometry = true;
+    }
     if (sectionAt[i].Z <= 0) warnings.push(`Element ${i + 1} has Z ≤ 0 — bending stress is reported as zero there.`);
     if (sectionAt[i].Av <= 0) warnings.push(`Element ${i + 1} has Av ≤ 0 — shear stress is reported as zero there.`);
   }
@@ -838,10 +1364,11 @@ function analyze(model) {
     equilibrium: LOAD_CASES.map((c) => ({ case: c, applied: 0, reactions: 0, residual: 0, ok: true })),
     continuity: [],
     deflectionCheck: { longestSpan: 0, limitN: model.deflectionLimitN, allowableMm: 0, maxAbsMm: 0, utilisation: 0, spans: [], governingLabel: "—", status: "N/A" },
-    sectionAt, defaultI: resolveSection(model.defaultSection, custom).I,
+    sectionAt, defaultI, missingSections, staleSections,
   });
   if (!supportStable) return fail("UNSTABLE SUPPORTS");
-  if (totalLength <= 0 || warnings.some((w) => w.includes("I ≤ 0") || w.includes("non-positive"))) return fail("INVALID GEOMETRY");
+  if (missingSections.length) return fail("MISSING SECTION");
+  if (badGeometry) return fail("INVALID GEOMETRY");
 
   const nDof = nNodes * 2;
   const K = Array.from({ length: nDof }, () => new Array(nDof).fill(0));
@@ -1223,14 +1750,32 @@ function analyze(model) {
     E: E_mpa, density, nElements: nEl, nNodes, nodeX, stations, reactions,
     selected, comboResults, envelope, equilibrium, continuity,
     deflectionCheck: selected.deflectionCheck,
-    sectionAt, defaultI: resolveSection(model.defaultSection, custom).I,
+    sectionAt, defaultI, missingSections, staleSections,
   };
 }
 
 const STORAGE_KEY = "cba-model-v1";
 const STORAGE_KEY_LEGACY = "spanline-model-v1";
+const BEAM_CACHE_KEY = "cba-beams-cache-v1";
+const BEAM_PENDING_KEY = "cba-beams-pending-v1";
+const GH_TOKEN_KEY = "cba-github-token-v1";
+// Where the shared beam library lives. The live site serves the same file next to index.html.
+const BEAM_REPO = { owner: "Lumax-Energy", repo: "lumax-cba", branch: "main", path: "beams.json" };
+const BEAM_FILE_SCHEMA = "lumax-cba/beams@1";
+const BEAM_FILE_NOTE =
+  "Beam library for CBA (https://lumax-energy.github.io/lumax-cba/). Units: mm, mm2, mm3, mm4, kg/m. " +
+  "Edit it on the app's Beams tab, or by hand here: names must be unique, and I, Z and A must be greater than zero.";
+const GH_REPO_URL = `https://api.github.com/repos/${BEAM_REPO.owner}/${BEAM_REPO.repo}`;
+const GH_CONTENTS_URL = `https://api.github.com/repos/${BEAM_REPO.owner}/${BEAM_REPO.repo}/contents/${BEAM_REPO.path}`;
+const GH_RAW_URL = `https://raw.githubusercontent.com/${BEAM_REPO.owner}/${BEAM_REPO.repo}/${BEAM_REPO.branch}/${BEAM_REPO.path}`;
+const GH_FILE_URL = `https://github.com/${BEAM_REPO.owner}/${BEAM_REPO.repo}/blob/${BEAM_REPO.branch}/${BEAM_REPO.path}`;
+const GH_HISTORY_URL = `https://github.com/${BEAM_REPO.owner}/${BEAM_REPO.repo}/commits/${BEAM_REPO.branch}/${BEAM_REPO.path}`;
+// After a save, the live site keeps serving the previous beams.json until Pages republishes
+// (about a minute). For this long the newer copy saved in this browser is preferred.
+const PAGES_LAG_MS = 10 * 60 * 1000;
 const TABS = [
   { id: "geometry", label: "Geometry" },
+  { id: "beams", label: "Beams" },
   { id: "loads", label: "Loads" },
   { id: "combos", label: "Combinations" },
   { id: "results", label: "Results" },
@@ -1256,7 +1801,1710 @@ const ui = {
   showInactive: false,
   hover: {},
   stationField: "M",
+  beamDraft: null,
+  confirmDelete: null,
+  confirmDiscard: false,
+  pasteOpen: false,
+  pasteText: "",
+  pasteUnits: "mm",
+  pasteMaterial: "Steel",
+  pasteResult: null,
+  renderQueued: false,
+  renderCount: 0,
+  announced: null,
+  pointerDown: false,
+  bootCopies: null,
+  waitingOn: null,
 };
+
+/* ---- Beam library: local state and GitHub sync ------------------------------------------ */
+
+const lib = {
+  base: { revision: 0, updated: null, beams: [], savedAt: 0 }, // beams.json as last seen on GitHub
+  pending: [], // edits made in this browser and not yet on GitHub (see applyBeamOps)
+  editSeq: 0, // bumped by every local edit, so a save can tell which edits it did not include
+  touched: null, // while saving: lower-cased names of beams edited since the save began
+  uncertain: null, // a save whose reply was lost: { merged, sha, ops }, checked at the next read
+  missing: false, // beams.json was seen on GitHub and is now gone
+  source: "none", // "none" | "cache" | "github"
+  loading: false,
+  saving: false,
+  message: null, // { tone, text, link?, linkText? }
+  token: "",
+  remember: false,
+};
+
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function storageSet(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable: the library still works for this page view */
+  }
+}
+function parseJson(raw) {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function effectiveBeams() {
+  return applyBeamOps(lib.base.beams, lib.pending);
+}
+function pendingDiff() {
+  return beamDiff(lib.base.beams, effectiveBeams());
+}
+
+const lower = (s) => String(s).toLowerCase();
+function opName(op) {
+  return op.op === "delete" ? op.name : op.beam.name;
+}
+// Names are unique regardless of case (and stored trimmed), so a beam is looked up the same way.
+function beamNamed(beams, name) {
+  const k = lower(String(name).replace(/\s+/g, " ").trim());
+  return beams.find((b) => lower(b.name) === k) ?? null;
+}
+function sameBeamOrNone(a, b) {
+  return a === null || b === null ? a === b : sameBeam(a, b);
+}
+
+// Rewrites the pending edits as the fewest operations that turn the GitHub copy into what this
+// browser shows: deletes, then one upsert per new or changed beam. Each operation remembers the
+// GitHub version of the beam it started from (base; null for a new name), so a save can tell
+// when someone else has changed the same beam in the meantime.
+function compactPending() {
+  const started = new Map();
+  for (const op of lib.pending) {
+    if (!("base" in op)) continue;
+    // An edit that renames a beam started from the old name's version; the new name did not
+    // exist then (the form refuses names in use).
+    const key = lower(op.from ?? opName(op));
+    if (!started.has(key)) started.set(key, op.base);
+    if (op.from && lower(op.from) !== lower(opName(op)) && !started.has(lower(opName(op)))) started.set(lower(opName(op)), null);
+  }
+  const baseOf = (name) => (started.has(lower(name)) ? started.get(lower(name)) : beamNamed(lib.base.beams, name));
+  const now = effectiveBeams();
+  const diff = beamDiff(lib.base.beams, now);
+  const byName = new Map(now.map((b) => [b.name, b]));
+  lib.pending = [
+    ...diff.removed.map((name) => ({ op: "delete", name, base: baseOf(name) })),
+    ...now.filter((b) => diff.added.includes(b.name) || diff.changed.includes(b.name)).map((b) => ({ op: "upsert", beam: byName.get(b.name), base: baseOf(b.name) })),
+  ];
+}
+
+// Pending edits to beams that have changed on GitHub since the edit began, one per beam. A beam
+// GitHub already holds exactly as this browser wants it (a save whose reply was lost, the same
+// delete made by a colleague) is no conflict.
+function pendingConflicts(beams = lib.base.beams) {
+  const out = new Map();
+  const want = effectiveBeams();
+  // Upserts first, so a beam renamed here only in capitals is listed under the new spelling.
+  const ops = [...lib.pending.filter((op) => op.op === "upsert"), ...lib.pending.filter((op) => op.op !== "upsert")];
+  for (const op of ops) {
+    if (!("base" in op)) continue;
+    const theirs = beamNamed(beams, opName(op));
+    if (sameBeamOrNone(op.base, theirs)) continue;
+    const mine = beamNamed(want, opName(op));
+    if (sameBeamOrNone(mine, theirs)) continue;
+    const k = lower(opName(op));
+    if (!out.has(k)) out.set(k, { name: opName(op), base: op.base, theirs, mine });
+  }
+  return [...out.values()];
+}
+
+// While a save is in flight, remember which beams are edited, so that the save's result does not
+// undo those edits (see adoptSavedBase).
+function noteTouched(names) {
+  if (!lib.touched) return;
+  for (const n of names) if (typeof n === "string") lib.touched.add(lower(n.trim()));
+}
+
+function normaliseOp(op) {
+  const withBase = (o) => {
+    if (!op || !("base" in op)) return o;
+    const base = op.base === null ? null : normaliseBeam(op.base);
+    return op.base === null || base ? { ...o, base } : o;
+  };
+  if (op?.op === "delete" && typeof op.name === "string") return withBase({ op: "delete", name: op.name });
+  if (op?.op === "upsert") {
+    const beam = normaliseBeam(op.beam);
+    if (!beam) return null;
+    return withBase(typeof op.from === "string" ? { op: "upsert", from: op.from, beam } : { op: "upsert", beam });
+  }
+  return null;
+}
+
+const BEAM_FILE_KEYS = ["schema", "revision", "updated", "note", "beams"];
+// extra: top-level fields someone added to beams.json by hand, written back unchanged.
+function beamFileDoc(f, extra = {}) {
+  return { ...extra, schema: BEAM_FILE_SCHEMA, revision: f.revision, updated: f.updated, note: BEAM_FILE_NOTE, beams: f.beams };
+}
+
+function persistLibrary() {
+  storageSet(BEAM_CACHE_KEY, JSON.stringify({ ...beamFileDoc(lib.base), savedAt: lib.base.savedAt || 0, source: lib.source }));
+  storageSet(BEAM_PENDING_KEY, lib.pending.length ? JSON.stringify(lib.pending) : null);
+}
+
+// Replaces the model after an action the user took in this tab; it is written to storage only
+// when it actually changed.
+function setModelQuietly(next) {
+  const changed = JSON.stringify(next) !== JSON.stringify(model);
+  model = next;
+  if (changed) persist();
+}
+
+// The beams the analysis sees, and the copies the current model keeps of the ones it uses.
+// accept: see syncSectionDefs. Library updates that arrive by themselves (loading, another tab,
+// a colleague's save merged in) change the model in memory only: this tab may hold an older
+// model than the one saved by another tab, and must not write it back. The copies reach storage
+// with this tab's next model edit, and start-up brings them up to date anyway. persistModel is
+// for the user's own library actions in this tab.
+function applyLibrary(accept = null, persistModel = false) {
+  setSectionLibrary(effectiveBeams());
+  const next = syncSectionDefs(model, accept);
+  if (persistModel) setModelQuietly(next);
+  else model = next;
+}
+
+// Reads the library and this browser's unsaved edits from storage: at start-up, and when another
+// tab changes them.
+function readLibraryStorage() {
+  const cached = parseJson(storageGet(BEAM_CACHE_KEY));
+  const file = cached ? normaliseBeamFile(cached) : null;
+  if (file) {
+    lib.base = { revision: file.revision, updated: file.updated, beams: file.beams, savedAt: Number(cached.savedAt) || 0 };
+    lib.source = cached.source === "github" ? "github" : "cache";
+  }
+  const pend = parseJson(storageGet(BEAM_PENDING_KEY));
+  lib.pending = Array.isArray(pend) ? pend.map(normaliseOp).filter(Boolean) : [];
+}
+
+function hydrateLibrary() {
+  readLibraryStorage();
+  const tok = storageGet(GH_TOKEN_KEY);
+  if (tok) {
+    lib.token = tok;
+    lib.remember = true;
+  }
+  setSectionLibrary(effectiveBeams());
+}
+
+function sectionNamesUsed(m) {
+  const n = Math.max(1, Math.min(24, Math.round(Number(m.nElements) || 1)));
+  const names = new Set([m.defaultSection]);
+  for (const el of (Array.isArray(m.elements) ? m.elements : []).slice(0, n)) names.add(el?.section || m.defaultSection);
+  return [...names].filter((s) => typeof s === "string" && !isCustomName(s));
+}
+
+function sectionDefOf(b) {
+  const { name, embedded, missing, ...rest } = b;
+  return rest;
+}
+
+// A model carries the properties of every section it uses (sectionDefs), so an exported file
+// or a saved model still analyses the same if that section later leaves the library.
+//  - A library beam's copy follows the library, except when its A, I, Z or Av differ from the
+//    copy already saved (a colleague's file, or a beam changed elsewhere since): then the saved
+//    copy is kept and the analysis says the library's values are used, until the user accepts
+//    them. accept: a Set of names whose copy should follow the library now (the user changed
+//    that beam here), or true for all.
+//  - Copies of sections that are in no library, or whose values differ from the library's, are
+//    kept even while nothing uses them, so choosing another section and then going back does not
+//    lose them. "Remove unused copies" on the Beams tab drops them.
+function syncSectionDefs(m, accept = null) {
+  const old = m.sectionDefs && typeof m.sectionDefs === "object" ? m.sectionDefs : {};
+  const own = (o, n) => Object.prototype.hasOwnProperty.call(o, n);
+  const takes = (n) => accept === true || (accept instanceof Set && accept.has(n));
+  const kept = (n) => {
+    const b = normaliseBeam({ ...old[n], name: n });
+    return b ? sectionDefOf(b) : null;
+  };
+  const inLibrary = (n) => SECTION_LIBRARY.find((s) => s !== CUSTOM_SECTION && s.name === n) ?? null;
+  const used = new Set(sectionNamesUsed(m));
+  const defs = {};
+  for (const name of used) {
+    const lib1 = inLibrary(name);
+    if (lib1 && (!own(old, name) || takes(name) || !sectionPropsDiffer(lib1, old[name]).length)) defs[name] = sectionDefOf(lib1);
+    else if (own(old, name)) {
+      const d = kept(name);
+      if (d) defs[name] = d;
+    }
+  }
+  for (const name of Object.keys(old)) {
+    if (own(defs, name) || used.has(name)) continue;
+    const lib1 = inLibrary(name);
+    if (lib1 && (takes(name) || !sectionPropsDiffer(lib1, old[name]).length)) continue;
+    const d = kept(name);
+    if (d) defs[name] = d;
+  }
+  return { ...m, sectionDefs: defs };
+}
+
+async function fetchBeamDoc(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// Fetches beams.json: from the live site first (same origin, no rate limit), then straight
+// from the repository (for a copy of the page opened from disk).
+async function loadLibrary() {
+  if (typeof fetch !== "function" || lib.saving || lib.loading) return;
+  lib.loading = true;
+  if (ui.tab === "beams") renderWhenIdle();
+  let doc = null;
+  let missing = false;
+  for (const url of [`${BEAM_REPO.path}?t=${Date.now()}`, GH_RAW_URL]) {
+    try {
+      doc = await fetchBeamDoc(url);
+      break;
+    } catch (e) {
+      if (/HTTP 404/.test(String(e?.message))) missing = true;
+    }
+  }
+  lib.loading = false;
+  if (!doc) {
+    if (missing && lib.source === "none") {
+      lib.message = { tone: "muted", text: "beams.json is not on GitHub yet. Add beams here and save them to create it." };
+    } else if (missing) {
+      lib.missing = true;
+      lib.message = { tone: "warn", text: `beams.json is no longer on GitHub (deleted or reverted). The copy saved in this browser is shown (${effectiveBeams().length} beams); "Save to GitHub" writes it there again.` };
+    } else {
+      lib.message = {
+        tone: "warn",
+        text: lib.source === "cache"
+          ? "Couldn't reach GitHub. Showing the copy of the beam library saved in this browser."
+          : "Couldn't load the beam library from GitHub. Check the connection and press Reload.",
+      };
+    }
+    renderWhenIdle();
+    return;
+  }
+  const file = normaliseBeamFile(doc);
+  if (!file) {
+    lib.message = { tone: "danger", text: "beams.json on GitHub is not in the expected format. Fix or revert it on GitHub.", link: GH_HISTORY_URL, linkText: "File history" };
+    renderWhenIdle();
+    return;
+  }
+  const justSaved = lib.base.savedAt && Date.now() - lib.base.savedAt < PAGES_LAG_MS;
+  if (justSaved && file.revision < lib.base.revision) {
+    lib.message = { tone: "muted", text: `The live site is still publishing revision ${lib.base.revision} of the library; it is shown from this browser meanwhile.` };
+  } else {
+    lib.missing = false;
+    const u = lib.uncertain;
+    if (u && JSON.stringify(file.beams) === u.merged) {
+      // A save whose reply was lost did go through: handle it as a save.
+      lib.uncertain = null;
+      adoptSavedBase(file, 0, u.ops, -1);
+      lib.touched = null;
+    } else {
+      lib.base = { revision: file.revision, updated: file.updated, beams: file.beams, savedAt: 0 };
+      lib.source = "github";
+      compactPending();
+    }
+    if (lib.message?.tone !== "ok") lib.message = null;
+    if (file.skipped) {
+      lib.message = {
+        tone: "warn",
+        text: `${file.skipped} ${file.skipped === 1 ? "entry" : "entries"} in beams.json could not be used (no name, a repeated name, or I, Z or A not greater than zero) and ${file.skipped === 1 ? "was" : "were"} skipped. Saving from here is blocked until it is fixed on GitHub, so ${file.skipped === 1 ? "it is" : "they are"} not lost.`,
+        link: GH_FILE_URL,
+        linkText: "Open beams.json",
+      };
+    }
+  }
+  persistLibrary();
+  // Copies start-up made from this browser's cached library were never saved with the model:
+  // they follow GitHub's version, instead of being taken for "the copy saved with this model".
+  applyLibrary(ui.bootCopies);
+  ui.bootCopies = null;
+  renderWhenIdle();
+}
+
+function utf8ToBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function base64ToUtf8(b64) {
+  const bin = atob(String(b64).replace(/\s+/g, ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function ghHeaders(json, accept = "application/vnd.github+json") {
+  const h = { Accept: accept, Authorization: `Bearer ${lib.token}`, "X-GitHub-Api-Version": "2022-11-28" };
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+
+async function ghErrorText(res) {
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* no body */
+  }
+  const detail = typeof body?.message === "string" ? body.message.split(/\s*\n+\s*/).filter(Boolean).join(" ").slice(0, 300) : "";
+  const said = detail ? ` GitHub said: "${detail}"` : "";
+  const repo = `${BEAM_REPO.owner}/${BEAM_REPO.repo}`;
+  if (res.status === 401) return "GitHub did not accept the token. It may be mistyped, expired or revoked.";
+  if (res.status === 403 && res.headers?.get?.("x-ratelimit-remaining") === "0") return "GitHub's rate limit was reached. Try again in a few minutes.";
+  if (res.status === 403 && /too.?large/i.test(`${body?.errors?.map?.((e) => e?.code).join(" ") || ""} ${detail}`)) return `beams.json is too large for GitHub's contents API.${said}`;
+  if (res.status === 403 || res.status === 404) {
+    return `GitHub refused access to ${repo} (${res.status}). The token needs access to that repository with Contents: Read and write; an organisation's single sign-on or a branch rule can also block it.${said}`;
+  }
+  return `GitHub returned ${res.status}.${said}`;
+}
+
+function libraryCommitMessage(diff) {
+  const parts = [];
+  if (diff.added.length) parts.push(`add ${diff.added.join(", ")}`);
+  if (diff.changed.length) parts.push(`update ${diff.changed.join(", ")}`);
+  if (diff.removed.length) parts.push(`remove ${diff.removed.join(", ")}`);
+  let subject = `Beam library: ${parts.join("; ")}`;
+  if (subject.length > 72) subject = `Beam library: ${diff.count} change${diff.count === 1 ? "" : "s"}`;
+  const lines = [
+    ...diff.added.map((n) => `+ ${n}`),
+    ...diff.changed.map((n) => `~ ${n}`),
+    ...diff.removed.map((n) => `- ${n}`),
+  ];
+  return `${subject}\n\n${lines.join("\n")}\n\nSaved from the CBA app (Beams tab).`;
+}
+
+// beams.json as it is on GitHub now, through the API (always current, unlike the live site).
+// rawOf maps each parsed beam to its entry exactly as written in the file, and extra holds
+// top-level fields the app does not use, so a save writes both back untouched.
+async function readRemoteLibrary() {
+  const url = `${GH_CONTENTS_URL}?ref=${encodeURIComponent(BEAM_REPO.branch)}`;
+  const getRes = await fetch(url, { headers: ghHeaders(false, "application/vnd.github.object+json"), cache: "no-store" });
+  if (getRes.status === 404) {
+    // Either the file does not exist yet (the save creates it), or the token cannot see the
+    // repository. When this browser has seen the file, it is the token; say so rather than
+    // treat the library as empty.
+    if (lib.base.revision > 0 || lib.base.beams.length) {
+      // This browser has seen the file: either it was deleted, or the token cannot see the
+      // repository. The repository itself tells which.
+      const repoRes = await fetch(GH_REPO_URL, { headers: ghHeaders(false), cache: "no-store" });
+      if (!repoRes.ok) throw new Error(`${await ghErrorText(repoRes)} (beams.json was on GitHub at revision ${lib.base.revision}; this token cannot read the repository.)`);
+      // Deleted. Saving re-creates it from the copy this browser shows (the last one seen on
+      // GitHub, with this browser's edits), as the page says.
+      return { revision: lib.base.revision, updated: lib.base.updated, beams: lib.base.beams, rawOf: new Map(), extra: {}, sha: null, deleted: true };
+    }
+    return { revision: 0, updated: null, beams: [], rawOf: new Map(), extra: {}, sha: null };
+  }
+  if (!getRes.ok) throw new Error(await ghErrorText(getRes));
+  const body = await getRes.json();
+  let text;
+  if (body?.encoding === "none" || typeof body?.content !== "string") {
+    // Over 1 MB the contents API leaves the content out; ask for the file itself.
+    const rawRes = await fetch(url, { headers: ghHeaders(false, "application/vnd.github.raw+json"), cache: "no-store" });
+    if (!rawRes.ok) throw new Error(await ghErrorText(rawRes));
+    text = await rawRes.text();
+  } else {
+    text = base64ToUtf8(body.content);
+  }
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    throw new Error("beams.json on GitHub is not valid JSON. Fix or revert it on GitHub, then save again.");
+  }
+  const f = normaliseBeamFile(doc);
+  if (!f) throw new Error("beams.json on GitHub is not in the expected format. Fix or revert it on GitHub, then save again.");
+  if (f.skipped) throw new Error(`beams.json on GitHub has ${f.skipped} ${f.skipped === 1 ? "entry" : "entries"} the app cannot read. Fix ${f.skipped === 1 ? "it" : "them"} on GitHub first, so saving from here does not drop ${f.skipped === 1 ? "it" : "them"}.`);
+  // Nothing was skipped, so the parsed beams and the file's entries correspond one to one.
+  const list = Array.isArray(doc) ? doc : doc.beams;
+  const rawOf = new Map(f.beams.map((b, i) => [b, list[i]]));
+  const extra = {};
+  if (!Array.isArray(doc)) for (const [k, v] of Object.entries(doc)) if (!BEAM_FILE_KEYS.includes(k)) extra[k] = v;
+  return { ...f, rawOf, extra, sha: body.sha };
+}
+
+// GitHub's copy becomes the base. Edits made while the save was in flight are not in it: for
+// each beam edited meanwhile, the pending edit becomes whatever turns GitHub's new copy into what
+// this browser shows, even when that is the state before the save (a beam added by this save
+// and deleted meanwhile is deleted again). An edit to a beam this save wrote starts from what was
+// written; any other keeps the GitHub version it started from, so a colleague's change is still
+// caught.
+function adoptSavedBase(file, savedAt, savedOps, seq) {
+  const want = effectiveBeams();
+  const oldBase = lib.base.beams;
+  const startedFrom = new Map();
+  for (const op of lib.pending) if ("base" in op && !startedFrom.has(lower(opName(op)))) startedFrom.set(lower(opName(op)), op.base);
+  const touched = lib.touched || new Set();
+  lib.base = { revision: file.revision, updated: file.updated, beams: file.beams, savedAt };
+  lib.source = "github";
+  if (lib.editSeq === seq) {
+    lib.pending = [];
+    return;
+  }
+  const written = new Set(savedOps.map((op) => lower(opName(op))));
+  const ops = [];
+  for (const k of touched) {
+    // Edited and put back meanwhile, and not part of this save: nothing to keep, and GitHub's
+    // version (perhaps a colleague's change merged by this save) stands.
+    if (!written.has(k) && !startedFrom.has(k)) continue;
+    const mine = beamNamed(want, k);
+    const theirs = beamNamed(file.beams, k);
+    const base = written.has(k) ? theirs : startedFrom.has(k) ? startedFrom.get(k) : beamNamed(oldBase, k);
+    if (!mine && theirs) ops.push({ op: "delete", name: theirs.name, base });
+    else if (mine && !sameBeamOrNone(mine, theirs)) ops.push({ op: "upsert", beam: mine, base });
+  }
+  lib.pending = ops;
+  compactPending();
+}
+
+// Commits this browser's library edits to beams.json on GitHub. The edits are replayed on the
+// file as it is on GitHub at that moment, so beams a colleague saved meanwhile are kept. If a
+// colleague changed or deleted a beam that was also edited here, nothing is written: both
+// versions are shown and the user picks one. If someone saves between our read and our write,
+// GitHub refuses the stale write and we read again.
+async function saveLibraryToGitHub() {
+  if (lib.saving) return;
+  if (!lib.token) {
+    lib.message = { tone: "warn", text: "Enter a GitHub token in the GitHub card first." };
+    renderWhenIdle();
+    return;
+  }
+  if (typeof fetch !== "function") return;
+  lib.saving = true;
+  // After a lost reply, keep tracking edits until it is known whether that save went through.
+  if (!lib.uncertain) lib.touched = new Set();
+  lib.message = { tone: "muted", text: "Saving to GitHub…" };
+  renderWhenIdle();
+  try {
+    let refused = null; // { sha, text } of a write GitHub turned down
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const remote = await readRemoteLibrary();
+      const u = lib.uncertain;
+      if (u) {
+        lib.uncertain = null;
+        // The earlier save whose reply was lost: if GitHub holds what it sent, it went through.
+        if (remote.sha !== u.sha && JSON.stringify(remote.beams) === u.merged) adoptSavedBase(remote, Date.now(), u.ops, -1);
+        lib.touched = new Set();
+      }
+      // Refused although the file has not changed: not a race, so retrying cannot help.
+      if (refused && remote.sha === refused.sha) throw new Error(refused.text);
+      const seq = lib.editSeq;
+      const ops = lib.pending.slice();
+      const conflicts = pendingConflicts(remote.beams);
+      if (conflicts.length) {
+        // Read through the API, so current: savedAt stops the live site's older copy replacing it.
+        lib.base = { revision: remote.revision, updated: remote.updated, beams: remote.beams, savedAt: Date.now() };
+        lib.source = "github";
+        compactPending();
+        const names = conflicts.map((c) => c.name).join(", ");
+        lib.message = {
+          tone: "danger",
+          text: `Not saved. Someone else changed ${conflicts.length === 1 ? "this beam" : "these beams"} on GitHub after you edited ${conflicts.length === 1 ? "it" : "them"} here: ${names}. Choose which version to keep below, then save again.`,
+        };
+        return;
+      }
+      const merged = applyBeamOps(remote.beams, ops);
+      const diff = remote.deleted ? beamDiff([], merged) : beamDiff(remote.beams, merged);
+      if (!diff.count && !remote.deleted) {
+        adoptSavedBase(remote, Date.now(), ops, seq);
+        lib.message = { tone: "ok", text: "GitHub already has these beams. Nothing to save." };
+        return;
+      }
+      const next = { revision: remote.revision + 1, updated: new Date().toISOString(), beams: merged };
+      // Beams nobody edited are written back exactly as they were in the file.
+      const written = beamFileDoc({ ...next, beams: merged.map((b) => remote.rawOf.get(b) ?? b) }, remote.extra);
+      let putRes = null;
+      let lost = null;
+      try {
+        putRes = await fetch(GH_CONTENTS_URL, {
+          method: "PUT",
+          headers: ghHeaders(true),
+          body: JSON.stringify({
+            message: remote.deleted ? `Beam library: re-create beams.json (${merged.length} beam${merged.length === 1 ? "" : "s"})\n\nbeams.json was missing from the repository; written again from the CBA app's copy.` : libraryCommitMessage(diff),
+            content: utf8ToBase64(`${JSON.stringify(written, null, 2)}\n`),
+            branch: BEAM_REPO.branch,
+            ...(remote.sha ? { sha: remote.sha } : {}),
+          }),
+        });
+      } catch (e) {
+        lost = e;
+      }
+      if (lost || putRes.status >= 500) {
+        // The write may have been committed with its reply lost. If GitHub now holds exactly what
+        // was sent, it was: carry on as after a save, so edits made meanwhile are handled as such.
+        let check = null;
+        try {
+          check = await readRemoteLibrary();
+        } catch {
+          /* still unreachable */
+        }
+        if (check && check.sha !== remote.sha && JSON.stringify(check.beams) === JSON.stringify(merged)) {
+          adoptSavedBase(check, Date.now(), ops, seq);
+          lib.message = { tone: "ok", text: `Saved to GitHub as revision ${check.revision}. The live site picks it up in about a minute.`, link: GH_HISTORY_URL, linkText: "File history" };
+          return;
+        }
+        // Still unknown: check at the next read of GitHub (next save or reload).
+        lib.uncertain = { merged: JSON.stringify(merged), sha: remote.sha, ops };
+        if (lost) throw lost;
+      }
+      if (putRes.status === 409 || putRes.status === 422) {
+        refused = { sha: remote.sha, text: await ghErrorText(putRes) };
+        continue; // probably changed under us: read again
+      }
+      if (!putRes.ok) throw new Error(await ghErrorText(putRes));
+      const out = await putRes.json().catch(() => ({}));
+      adoptSavedBase(next, Date.now(), ops, seq);
+      const summary = [
+        diff.added.length ? `${diff.added.length} added` : "",
+        diff.changed.length ? `${diff.changed.length} updated` : "",
+        diff.removed.length ? `${diff.removed.length} removed` : "",
+      ].filter(Boolean).join(", ");
+      const later = lib.pending.length ? ` ${lib.pending.length} later change${lib.pending.length === 1 ? " is" : "s are"} still to save.` : "";
+      lib.missing = false;
+      lib.message = {
+        tone: "ok",
+        text: `Saved to GitHub as revision ${next.revision} (${summary}). The live site picks it up in about a minute.${later}`,
+        link: out?.commit?.html_url || GH_HISTORY_URL,
+        linkText: "View commit",
+      };
+      return;
+    }
+    throw new Error("beams.json kept changing on GitHub while saving. Press Reload, then save again.");
+  } catch (e) {
+    const offline = e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(e?.message));
+    lib.message = {
+      tone: "danger",
+      text: offline
+        ? lib.uncertain
+          ? "Couldn't reach GitHub to confirm the save. Your edits are kept in this browser; press Save to GitHub again when the connection is back."
+          : "Couldn't reach GitHub. Check the connection and try again; your edits are still saved in this browser."
+        : String(e?.message || e),
+    };
+  } finally {
+    lib.saving = false;
+    if (!lib.uncertain) lib.touched = null;
+    persistLibrary();
+    applyLibrary();
+    // Not render(): a field being typed in meanwhile would lose its text and focus.
+    renderWhenIdle();
+    if (!ui.renderQueued) focusFirst(["beams-save"], ["new-beam"]);
+  }
+}
+
+function downloadBeamFile() {
+  const doc = beamFileDoc({ revision: lib.base.revision, updated: new Date().toISOString(), beams: effectiveBeams() });
+  downloadBlob(`${JSON.stringify(doc, null, 2)}\n`, "application/json", "beams.json");
+}
+
+// Points the model's elements and default section from one section name to another, and drops
+// the saved copy under the old name.
+function renameModelSections(m, renames) {
+  let next = m;
+  for (const [from, to] of renames) {
+    if (from === to) continue;
+    const defs = { ...(next.sectionDefs || {}) };
+    delete defs[from];
+    next = {
+      ...next,
+      sectionDefs: defs,
+      defaultSection: next.defaultSection === from ? to : next.defaultSection,
+      elements: next.elements.map((el) => (el.section === from ? { ...el, section: to } : el)),
+    };
+  }
+  return next;
+}
+
+// Adds, replaces or removes beams in this browser; they reach GitHub on "Save to GitHub". The
+// model's saved copies of the beams changed here follow the new values.
+function commitBeamOps(ops, renames = []) {
+  noteTouched(ops.flatMap((op) => [opName(op), op.from]));
+  lib.pending.push(...ops);
+  lib.editSeq++;
+  compactPending();
+  persistLibrary();
+  setSectionLibrary(effectiveBeams());
+  const accept = new Set(ops.filter((op) => op.op === "upsert").map((op) => op.beam.name));
+  setModelQuietly(syncSectionDefs(renameModelSections(model, renames), accept));
+}
+
+// Another tab saved, edited or discarded library changes: take them over, so the two tabs never
+// overwrite each other's unsaved edits in storage.
+function onLibraryStorage(ev) {
+  if (ev.key !== null && ev.key !== BEAM_CACHE_KEY && ev.key !== BEAM_PENDING_KEY) return;
+  const before = lib.pending.map(opName);
+  readLibraryStorage();
+  noteTouched([...before, ...lib.pending.map(opName)]);
+  lib.editSeq++;
+  // In memory only: this tab did nothing, so it must not write its model (see applyLibrary).
+  applyLibrary();
+  renderWhenIdle();
+}
+
+/* ---- Beam form (Beams tab) --------------------------------------------------------------- */
+
+// "1,943" or "48,200": a comma followed by exactly three digits is a thousands separator in one
+// convention and a decimal comma in another. Such a value is never guessed at.
+function isAmbiguousNumber(v) {
+  return /^-?[1-9]\d{0,2},\d{3}$/.test(String(v ?? "").trim().replace(/\s+/g, ""));
+}
+
+// Reads a typed or pasted number. Spaces group thousands. decimal is the decimal mark ("." or
+// ","), when known for the whole table; otherwise it is worked out from the value itself, and
+// an ambiguous value (see isAmbiguousNumber) gives NaN.
+function parseNum(v, decimal = null) {
+  if (v === null || v === undefined) return NaN;
+  const s = String(v).trim().replace(/\s+/g, "").replace(/^\+/, "");
+  if (!s) return NaN;
+  const commas = (s.match(/,/g) || []).length;
+  const dots = (s.match(/\./g) || []).length;
+  let dec = decimal;
+  if (!dec) {
+    if (commas && dots) dec = s.lastIndexOf(",") > s.lastIndexOf(".") ? "," : ".";
+    else if (commas > 1) dec = ".";
+    else if (dots > 1) dec = ",";
+    else if (commas === 1) {
+      if (isAmbiguousNumber(s)) return NaN;
+      dec = ",";
+    } else dec = ".";
+  }
+  const group = dec === "," ? "." : ",";
+  const parts = s.split(dec);
+  if (parts.length > 2) return NaN;
+  const [whole, frac] = parts;
+  if (whole.includes(group) && !(group === "," ? /^-?\d{1,3}(,\d{3})+$/ : /^-?\d{1,3}(\.\d{3})+$/).test(whole)) return NaN;
+  const text = whole.split(group).join("") + (frac !== undefined ? `.${frac}` : "");
+  if (!/^-?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text)) return NaN;
+  const n = Number(text);
+  return Number.isFinite(n) ? n : NaN;
+}
+// "1.808" read where a decimal point would make no sense (a section property in mm units) is
+// as ambiguous as "1,808", when nothing else shows the decimal mark.
+function isAmbiguousDot(v) {
+  return /^-?[1-9]\d{0,2}\.\d{3}$/.test(String(v ?? "").trim().replace(/\s+/g, ""));
+}
+function ambiguityProblem(label, raw) {
+  const s = String(raw).trim().replace(/\s+/g, "");
+  const sep = s.includes(",") ? "," : ".";
+  return `${label}: "${s}" could mean ${s.replace(sep, "")} or ${s.replace(",", ".")}. Type it without the thousands separator${sep === "," ? ", or with a decimal point" : ""}.`;
+}
+function sig(v, digits = 6) {
+  return Number.isFinite(v) ? Number(v.toPrecision(digits)) : v;
+}
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+function closeTo(a, b, rel = 1e-4) {
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= rel * Math.max(Math.abs(a), Math.abs(b), 1e-12);
+}
+
+// Filled in when the user leaves Source empty; editing such a beam starts with Source empty
+// again, so the text follows how the values were obtained.
+const AUTO_SOURCES = ["Calculated from dimensions (nominal gross section)", "Entered by user", "Pasted from a table"];
+
+// typed: the property fields holding the user's own values (typed now, or stored values the
+// calculation does not give). With "Enter my own values" the others follow the calculation, so a
+// later change of dimensions or material never leaves stale values. typedNow and rawTyped: the
+// property and dimension fields typed in since the form opened, whose decimal mark the user chose.
+function editBase(name) {
+  const op = lib.pending.find((o) => "base" in o && lower(o.from ?? opName(o)) === lower(name));
+  return op ? op.base : beamNamed(lib.base.beams, name);
+}
+
+function newBeamDraft(fromName) {
+  const b = fromName ? effectiveBeams().find((x) => x.name === fromName) : null;
+  if (!b) {
+    return {
+      mode: "add", from: null, original: null, base: null, shape: "lipped", raw: {}, rawTyped: {}, dims: {}, props: {}, typed: {}, typedNow: {}, override: false,
+      name: "", nameTouched: false, material: "Steel", source: "", notes: "",
+    };
+  }
+  const spec = shapeSpec(b.shape);
+  const shape = spec && b.shape !== "manual" && b.dims ? b.shape : "manual";
+  const calc = shape === "manual" ? null : sectionFromShape(shape, b.dims);
+  const density = BEAM_DENSITY[b.material];
+  const calcMass = calc?.ok && density ? calc.A * 1e-6 * density : null;
+  // Every stored value must match the calculation for the form to open in calculated mode;
+  // otherwise a supplier's mass or depth would be replaced by the calculated one on saving.
+  const matches = calc?.ok && ["A", "I", "Z", "Av"].every((k) => closeTo(calc[k], b[k]))
+    && (b.h === null || b.h === undefined || closeTo(calc.h, b.h))
+    && (b.mass === null || b.mass === undefined || closeTo(calcMass, b.mass, 1e-3));
+  const raw = {};
+  for (const [k, v] of Object.entries(b.dims || {})) raw[k] = String(v);
+  const str = (v) => (v === null || v === undefined ? "" : String(v));
+  const props = { A: str(b.A), I: str(b.I), Z: str(b.Z), Av: str(b.Av), h: str(b.h), mass: str(b.mass) };
+  // The user's own values are the stored ones the calculation does not give (a supplier's mass,
+  // say); the rest follow the dimensions when they are changed.
+  const typed = {};
+  if (!calc?.ok) for (const [k, v] of Object.entries(props)) typed[k] = v !== "";
+  else {
+    for (const k of ["A", "I", "Z", "Av", "h"]) typed[k] = props[k] !== "" && !closeTo(calc[k], b[k]);
+    const autoMass = density ? (typed.A ? b.A : calc.A) * 1e-6 * density : NaN;
+    typed.mass = props.mass !== "" && !closeTo(autoMass, b.mass, 1e-3);
+  }
+  return {
+    // base: the GitHub version this edit starts from, fixed now, so a colleague's change that
+    // arrives while the form is open is still caught as a conflict when saving.
+    mode: "edit", from: b.name, original: b, base: editBase(b.name), shape, raw, rawTyped: {}, dims: { ...(b.dims || {}) }, props, typed, typedNow: {},
+    override: shape === "manual" || !matches,
+    name: b.name, nameTouched: true, material: b.material || "Other", source: AUTO_SOURCES.includes(b.source) ? "" : b.source || "", notes: b.notes || "",
+  };
+}
+
+const PROP_FIELDS = [
+  { k: "A", label: "A", unit: "mm²" },
+  { k: "I", label: "I", unit: "mm⁴" },
+  { k: "Z", label: "Z", unit: "mm³" },
+  { k: "Av", label: "Av", unit: "mm²" },
+  { k: "h", label: "h", unit: "mm" },
+  { k: "mass", label: "Mass", unit: "kg/m" },
+];
+
+// One decimal mark for the whole form, worked out as for a pasted table: "36.920.000" typed in
+// one field means "5.383" in another is 5383, and "2,5" means "1.250" is 1250.
+// Only what the user typed counts: values the app filled in itself (an edited beam's stored
+// dimensions, calculated properties) are written with a decimal point and read that way.
+function draftDecimalMark(d) {
+  const own = d.override || d.shape === "manual";
+  const typedDims = Object.entries(d.raw || {}).filter(([k]) => d.rawTyped?.[k]).map(([, v]) => v);
+  const typedProps = own ? PROP_FIELDS.filter(({ k }) => d.typedNow?.[k]).map(({ k }) => d.props[k]) : [];
+  return tableDecimalMark([...typedDims, ...typedProps], null);
+}
+// A form value as a number: typed values with the form's decimal mark, the app's own with ".".
+function draftNum(d, v, typed, mark = draftDecimalMark(d)) {
+  return parseNum(v, typed ? mark : ".");
+}
+function syncDraftDims(d) {
+  const mark = draftDecimalMark(d);
+  for (const [k, v] of Object.entries(d.raw || {})) d.dims[k] = draftNum(d, v, d.rawTyped?.[k], mark);
+}
+
+// Fills the property fields the user has not typed in from the calculation; the mass from the
+// area actually used. Only with "Enter my own values" on a calculated shape.
+function refreshAutoProps(d) {
+  if (!d || !d.override || d.shape === "manual") return;
+  const calc = sectionFromShape(d.shape, d.dims);
+  const density = BEAM_DENSITY[d.material];
+  const typedA = d.typed.A ? draftNum(d, d.props.A, d.typedNow?.A) : NaN;
+  for (const { k } of PROP_FIELDS) {
+    if (d.typed[k]) continue;
+    let v = calc.ok ? calc[k] : NaN;
+    if (k === "mass") {
+      const area = Number.isFinite(typedA) ? typedA : calc.ok ? calc.A : NaN;
+      v = density && Number.isFinite(area) ? area * 1e-6 * density : NaN;
+    }
+    d.props[k] = Number.isFinite(v) ? String(sig(v, 6)) : "";
+  }
+}
+
+// Everything the form would add: { beam, problems, calc, own, values }.
+function draftResult(draft) {
+  const spec = shapeSpec(draft.shape);
+  const calc = draft.shape === "manual" ? null : sectionFromShape(draft.shape, draft.dims);
+  const own = draft.override || draft.shape === "manual";
+  const problems = [];
+  const mark = draftDecimalMark(draft);
+  if (spec && !mark) for (const [k, label] of spec.dims) if (draft.rawTyped?.[k] && isAmbiguousNumber(draft.raw[k])) problems.push(ambiguityProblem(label, draft.raw[k]));
+  if (!own && calc && !calc.ok) problems.push(...calc.problems);
+  // A backstop for unit slips in the dimensions: beams in this app are not metres deep.
+  if (calc?.ok && Math.max(...Object.values(draft.dims).filter(Number.isFinite)) > 3000) problems.push("A dimension is over 3 m. Dimensions are in mm.");
+  const density = BEAM_DENSITY[draft.material];
+  const calcMass = calc?.ok && density ? calc.A * 1e-6 * density : null;
+  const values = {};
+  for (const { k, label } of PROP_FIELDS) {
+    const c = calc?.ok ? (k === "mass" ? calcMass : calc[k]) : null;
+    if (!own) values[k] = c;
+    else {
+      // A section property in mm units with a lone "d.ddd" ("1.808") is as ambiguous as "1,808".
+      if (!mark && draft.typedNow?.[k] && (isAmbiguousNumber(draft.props[k]) || (SECTION_KEYS.includes(k) && isAmbiguousDot(draft.props[k])))) problems.push(ambiguityProblem(label, draft.props[k]));
+      const typed = draftNum(draft, draft.props[k], draft.typedNow?.[k], mark);
+      values[k] = Number.isFinite(typed) ? typed : k === "h" ? c : NaN;
+    }
+  }
+  // A blank mass comes from the area actually used, not the calculated one.
+  if (own && !Number.isFinite(values.mass) && Number.isFinite(values.A) && density) values.mass = values.A * 1e-6 * density;
+  if (own) {
+    for (const k of ["A", "I", "Z"]) if (!(values[k] > 0)) problems.push(`${k} must be a number greater than zero.`);
+    if (!(values.Av >= 0)) problems.push("Av must be a number, zero or more.");
+    if (!problems.length) problems.push(...beamPlausibility({ ...values, material: draft.material }));
+  }
+  const name = String(draft.name || "").replace(/\s+/g, " ").trim();
+  if (!name) problems.push("Give the beam a name.");
+  else if (name.length > BEAM_NAME_MAX) problems.push(`Keep the name to ${BEAM_NAME_MAX} characters.`);
+  else if (name.toLowerCase() === "custom") problems.push('"Custom" is reserved for the model\'s own properties.');
+  else if (effectiveBeams().some((b) => b.name.toLowerCase() === name.toLowerCase() && b.name !== draft.from)) problems.push(`There is already a beam called "${name}".`);
+  let beam = null;
+  if (!problems.length) {
+    const dims = {};
+    if (calc?.ok) for (const [k] of spec.dims) dims[k] = draft.dims[k];
+    // Editing keeps what the form does not show: hand-added fields and who added the beam.
+    const kept = draft.original ? { ...beamExtras(draft.original), ...(draft.original.addedBy ? { addedBy: draft.original.addedBy } : {}) } : {};
+    beam = normaliseBeam({
+      ...kept,
+      name,
+      shape: calc?.ok ? draft.shape : "manual",
+      ...(calc?.ok ? { dims } : {}),
+      material: draft.material,
+      h: Number.isFinite(values.h) ? sig(values.h) : null,
+      mass: Number.isFinite(values.mass) ? sig(values.mass, 4) : null,
+      A: sig(values.A), I: sig(values.I), Z: sig(values.Z), Av: sig(values.Av),
+      source: draft.source || (own ? AUTO_SOURCES[1] : AUTO_SOURCES[0]),
+      notes: draft.notes,
+      updated: todayIso(),
+    });
+    if (!beam) problems.push("These values cannot be used.");
+  }
+  return { beam, problems, calc, own, values };
+}
+
+const SHAPE_NOTES = {
+  i: "Root fillets included. Av = h × tw, the full-depth web area used for τ = V/Av.",
+  channel: "Parallel flanges with root fillets; toe radii and flange taper are ignored. Bending about the major axis only. Av = h × tw.",
+  lipped: "Gross section with rounded bends. Thin cold-formed walls can buckle locally, so stresses on the gross Z can be unconservative; check the effective section to the design code. Av = h × t.",
+  rhs: "Inside corner radius = ro − t. Typical ro: about 2t for cold-formed (EN 10219, t ≤ 6 mm), 1.5t for hot-finished (EN 10210). Av = 2 × h × t.",
+  chs: "Av = 2A/π (EN 1993-1-1, 6.2.6).",
+  rect: "Bending about the depth h. Av = A (average shear).",
+  manual: "Copy the major-axis values from the supplier's table. Mind the units: tables often give cm², cm⁴ and cm³.",
+};
+
+const DIM_HINTS = {
+  lipped: { h: "e.g. 150", b: "e.g. 65", c: "e.g. 20", t: "e.g. 2.0", ri: "about t to 1.5t" },
+  rhs: { ro: "about 2t (EN 10219)" },
+  i: { r: "0 if unknown" },
+  channel: { r: "0 if unknown" },
+};
+
+function beamPreviewSvg(shape, dims, calc) {
+  if (shape === "manual" || !calc?.ok) {
+    const msg = shape === "manual" ? "No drawing for direct entry" : "Enter the dimensions";
+    return `<svg viewBox="0 0 160 160" class="beam-svg" role="img" aria-label="${esc(msg)}"><text x="80" y="84" text-anchor="middle" class="beam-svg-empty">${esc(msg)}</text></svg>`;
+  }
+  const rings = sectionOutline(shape, dims, 6);
+  const pts = rings.flat();
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const s = 128 / Math.max(maxX - minX, maxY - minY, 1e-9);
+  const ox = (160 - (maxX - minX) * s) / 2;
+  const oy = (160 - (maxY - minY) * s) / 2;
+  const pt = ([x, y]) => `${(ox + (x - minX) * s).toFixed(2)},${(oy + (maxY - y) * s).toFixed(2)}`;
+  const d = rings.map((r) => `M${r.map(pt).join("L")}Z`).join("");
+  const yAxis = (oy + (maxY - calc.yc) * s).toFixed(2);
+  return `<svg viewBox="0 0 160 160" class="beam-svg" role="img" aria-label="Cross-section drawing">
+    <path d="${d}" fill-rule="evenodd" class="beam-shape"/>
+    <line x1="2" x2="158" y1="${yAxis}" y2="${yAxis}" class="beam-axis"/>
+  </svg>`;
+}
+
+function beamCalcHtml(draft, res) {
+  const { calc, own, values } = res;
+  const showCalc = draft.shape !== "manual";
+  const rows = PROP_FIELDS.map(({ k, label, unit }) => {
+    const c = calc?.ok ? (k === "mass" ? (BEAM_DENSITY[draft.material] ? calc.A * 1e-6 * BEAM_DENSITY[draft.material] : null) : calc[k]) : null;
+    const used = values[k];
+    let delta = "";
+    if (own && showCalc && Number.isFinite(c) && Number.isFinite(used) && c !== 0) {
+      const pct = ((used - c) / c) * 100;
+      const off = Math.abs(pct) > 5;
+      delta = `<td class="num${off ? " off" : ""}">${pct >= 0 ? "+" : ""}${esc(formatNum(pct, 1))} %</td>`;
+    } else if (own && showCalc) delta = `<td class="num subtle">—</td>`;
+    const digits = k === "mass" ? 3 : k === "h" ? 2 : k === "I" || k === "Z" ? 0 : 1;
+    return `<tr>
+      <td>${esc(label)} <span class="subtle">${esc(unit)}</span></td>
+      ${showCalc ? `<td class="num">${esc(formatNum(c ?? NaN, digits))}</td>` : ""}
+      ${own ? `<td class="num">${esc(formatNum(used ?? NaN, digits))}</td>${delta}` : ""}
+    </tr>`;
+  }).join("");
+  const head = `<tr><th>Property</th>${showCalc ? "<th>Calculated</th>" : ""}${own ? `<th>Used</th>${showCalc ? "<th>vs calc.</th>" : ""}` : ""}</tr>`;
+  return `<table class="data tight beam-props"><thead>${head}</thead><tbody>${rows}</tbody></table>
+    <p class="hint">${esc(SHAPE_NOTES[draft.shape] || "")}${calc?.ok ? ` Bending axis ${esc(formatNum(calc.yc, 2))} mm above the underside.` : ""}</p>`;
+}
+
+function beamProblemsHtml(res) {
+  return res.problems.length ? res.problems.map((p) => `<li>${esc(p)}</li>`).join("") : "";
+}
+
+// Live update while typing: only the results, drawing and messages are redrawn, so the field
+// being typed in keeps focus.
+function updateBeamForm() {
+  const draft = ui.beamDraft;
+  const form = document.getElementById("beam-form");
+  if (!draft || !form) return;
+  const nameInput = form.querySelector('[data-act="beam-text"][data-field="name"]');
+  if (!draft.nameTouched) {
+    const suggestion = suggestBeamName(draft.shape, draft.dims);
+    if (nameInput && document.activeElement === nameInput) {
+      // The name was just cleared: the beam has no name until one is typed, Suggest is pressed,
+      // or the field is left (then the suggestion is filled in, where it can be seen).
+      draft.name = nameInput.value.trim();
+      nameInput.placeholder = suggestion || "e.g. C 150x65x20x2.0";
+    } else {
+      draft.name = suggestion;
+      if (nameInput) nameInput.value = suggestion;
+    }
+  }
+  refreshAutoProps(draft);
+  for (const input of form.querySelectorAll('[data-act="beam-prop"]')) {
+    const k = input.getAttribute("data-field");
+    if (!draft.typed[k] && document.activeElement !== input && input.value !== (draft.props[k] ?? "")) input.value = draft.props[k] ?? "";
+  }
+  const res = draftResult(draft);
+  form.querySelector("#beam-calc").innerHTML = beamCalcHtml(draft, res);
+  form.querySelector("#beam-preview").innerHTML = beamPreviewSvg(draft.shape, draft.dims, res.calc);
+  // Rewritten only when the messages change: it is a live region, read out on every rewrite.
+  const problems = form.querySelector("#beam-problems");
+  const html = beamProblemsHtml(res);
+  if (problems.dataset.html !== html) {
+    problems.innerHTML = html;
+    problems.dataset.html = html;
+  }
+  const submit = form.querySelector('[data-act="beam-submit"]');
+  if (submit) submit.disabled = !res.beam;
+}
+
+function beamFormHtml(draft) {
+  refreshAutoProps(draft);
+  const spec = shapeSpec(draft.shape) || shapeSpec("manual");
+  const res = draftResult(draft);
+  const own = res.own;
+  const hints = DIM_HINTS[draft.shape] || {};
+  const dimFields = spec.dims
+    .map(([k, label]) => `<label class="label"><span>${esc(label)} (mm)</span><input class="field" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-act="beam-dim" data-field="${k}" value="${esc(draft.raw[k] ?? "")}" placeholder="${esc(hints[k] || "")}"></label>`)
+    .join("");
+  const propFields = own
+    ? `<div class="fields fields-3">${PROP_FIELDS.map(({ k, label, unit }) => `<label class="label"><span>${esc(label)} (${esc(unit)})${k === "mass" || k === "h" ? " · optional" : ""}</span><input class="field" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-act="beam-prop" data-field="${k}" value="${esc(draft.props[k] ?? "")}"></label>`).join("")}</div>
+      ${draft.shape !== "manual" ? `<p class="hint">Fields you have not typed in follow the dimensions and the material.</p>` : ""}`
+    : "";
+  const title = draft.mode === "edit" ? `Edit ${draft.from}` : "Add a beam";
+  const problemsHtml = beamProblemsHtml(res);
+  return `<section class="card span-2" id="beam-form">
+    <div class="row-head">
+      <div><h2>${esc(title)}</h2><p class="hint">Pick the shape and enter its dimensions; the properties are worked out as you type. Use your supplier's figures instead by ticking "Enter my own values".</p></div>
+      <button class="btn ghost" type="button" data-act="beam-cancel">Cancel</button>
+    </div>
+    <div class="beam-form-grid">
+      <div>
+        <div class="fields">
+          <label class="label span-2"><span>Shape</span><select class="sel" data-act="beam-shape">${options(BEAM_SHAPES.map((s) => ({ value: s.id, label: s.label })), draft.shape)}</select></label>
+          ${dimFields}
+        </div>
+        ${draft.shape !== "manual" ? `<label class="check"><input type="checkbox" data-act="beam-override" ${draft.override ? "checked" : ""}> Enter my own values (e.g. from the supplier's table)</label>` : ""}
+        ${propFields}
+        <div class="fields">
+          <div class="label span-2"><span id="beam-name-label">Name</span><div class="name-row"><input class="field" maxlength="${BEAM_NAME_MAX}" aria-labelledby="beam-name-label" data-act="beam-text" data-field="name" value="${esc(draft.name)}" placeholder="e.g. C 150x65x20x2.0">${draft.shape !== "manual" ? `<button class="btn" type="button" data-act="beam-suggest-name">Suggest</button>` : ""}</div></div>
+          <label class="label"><span>Material</span><select class="sel" data-act="beam-material">${options(BEAM_MATERIALS, draft.material)}</select></label>
+          <label class="label"><span>Source</span><input class="field" data-act="beam-text" data-field="source" value="${esc(draft.source)}" placeholder="e.g. supplier catalogue, p. 12"></label>
+          <label class="label span-2"><span>Notes</span><input class="field" data-act="beam-text" data-field="notes" value="${esc(draft.notes)}" placeholder="optional"></label>
+        </div>
+      </div>
+      <div class="beam-calc-col">
+        <div class="beam-preview" id="beam-preview">${beamPreviewSvg(draft.shape, draft.dims, res.calc)}</div>
+        <div id="beam-calc">${beamCalcHtml(draft, res)}</div>
+      </div>
+    </div>
+    <ul class="warn-list" id="beam-problems" aria-live="polite" data-html="${esc(problemsHtml)}">${problemsHtml}</ul>
+    <div class="actions form-actions">
+      <button class="btn primary" type="button" data-act="beam-submit" ${res.beam ? "" : "disabled"}>${draft.mode === "edit" ? "Save changes" : "Add to library"}</button>
+      <span class="hint">Kept in this browser straight away. Press "Save to GitHub" to share it with everyone.</span>
+    </div>
+  </section>`;
+}
+
+/* ---- Paste a supplier's table ------------------------------------------------------------- */
+
+// Column names, compared without case, spaces, dots, commas and dashes. Names that section
+// tables use for different things are left out on purpose: Zx and Sx (elastic in one country's
+// tables, plastic in another's), W (also the weight per metre) and d (often the straight web
+// depth, not the overall depth).
+const PASTE_HEADERS = {
+  name: ["name", "section", "designation", "profile", "size", "serialsize"],
+  A: ["a", "area", "ag"],
+  I: ["i", "ix", "iy", "ixx", "iyy", "imajor"],
+  Z: ["z", "zel", "ze", "zex", "zey", "wel", "wely", "welx", "wyel", "wxel"],
+  Av: ["av", "avz", "avy", "shear area"],
+  h: ["h", "depth"],
+  mass: ["mass", "kg/m", "weight", "m", "massperm"],
+  material: ["material"],
+  source: ["source"],
+};
+const AMBIGUOUS_Z_HEADERS = ["zx", "zy", "sx", "sy", "w", "wx", "wy", "s"];
+
+// Units in brackets are dropped from the column's name ("A (cm2)" is A) and read separately (see
+// headerUnits); a plastic or elastic qualifier is kept, so "W (pl)" is not taken for the elastic
+// modulus.
+function headerName(raw) {
+  return String(raw)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\(([^)]*)\)|\[([^\]]*)\]/g, (_, a, b) => {
+      const c = a ?? b;
+      return /pl/.test(c) ? "pl" : /\bel|elastic/.test(c) ? "el" : "";
+    })
+    .replace(/[\s_.,-]+/g, "")
+    .trim();
+}
+function headerKey(raw) {
+  const h = headerName(raw);
+  for (const [key, names] of Object.entries(PASTE_HEADERS)) if (names.some((n) => n.replace(/[\s_.,-]+/g, "") === h)) return key;
+  return null;
+}
+// The text in a column title's brackets; units rows under the titles are added to it.
+function bracketText(raw) {
+  return [...String(raw).toLowerCase().matchAll(/\(([^)]*)\)|\[([^\]]*)\]/g)].map((m) => m[1] ?? m[2]).join(" ");
+}
+const SUPERSCRIPT_DIGITS = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9", "⁻": "-" };
+function plainUnits(text) {
+  return String(text || "").toLowerCase().replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (c) => SUPERSCRIPT_DIGITS[c]);
+}
+// The words of a unit text, split at spaces, brackets and punctuation ("[cm]" is "cm").
+function unitWords(text) {
+  return plainUnits(text).split(/[\s()[\]{},;:]+/).map((w) => w.replace(/\.$/, "")).filter(Boolean);
+}
+// The power of ten a unit text multiplies by: "×10^3", "x 10³", "10^6 mm4", or "mm2 x 102" and
+// "103 mm2" where a superscript was lost in copying.
+function unitMultiplier(text) {
+  // Separate multiplication signs and unit names, so "mm²×10²" and "103mm2" split into tokens.
+  const tokens = plainUnits(text)
+    .replace(/[x×*·⋅∙´]/g, " x ")
+    .replace(/(mm|cm)(\^?\d)?/g, " $1$2 ")
+    .split(/[\s()[\]{},;:/]+/)
+    .filter(Boolean);
+  for (const t of tokens) {
+    let m = t.match(/^10(?:\^|\*\*|e)?(-?[1-9])$/);
+    if (m) return Number(m[1]);
+    m = t.match(/^1(0{2,6})$/);
+    if (m) return m[1].length;
+  }
+  return 0;
+}
+// The factor to the app's units (mm² for A and Av, mm⁴ for I, mm³ for Z) that a unit text gives
+// for column k: null when it gives none, NaN for inches.
+function statedFactor(text, k) {
+  const t = plainUnits(text).replace(/\s+/g, "");
+  const mm = /mm/.test(t), cm = /cm/.test(t);
+  if (!mm && !cm) {
+    const words = unitWords(text);
+    const inchWord = (w) => /^(in|inch|inches)(\^?-?\d)?$/.test(w);
+    return words.some(inchWord) && words.every((w) => inchWord(w) || /^[x×]?(10(\^?-?\d)?)?$/.test(w)) ? NaN : null;
+  }
+  if (mm && cm) return null;
+  const pow = { A: 2, Av: 2, I: 4, Z: 3 }[k];
+  return (cm ? 10 ** pow : 1) * 10 ** unitMultiplier(text);
+}
+function unitsWithFactor(k, f) {
+  return Object.keys(PASTE_UNITS).filter((u) => Math.abs(PASTE_UNITS[u].f[k] - f) <= 1e-9 * f);
+}
+// Factor to mm for a unit text given for h; null for inches or feet; 1 when it gives none.
+function lengthFactorOf(text) {
+  const words = unitWords(text);
+  if (words.includes("mm")) return 1;
+  if (words.includes("cm")) return 10;
+  if (words.includes("m")) return 1000;
+  const imperial = (w) => /^(in|inch|inches|ft|feet)$/.test(w);
+  if (words.length && words.every(imperial)) return null;
+  return 1;
+}
+
+// Where a double quote opens a quoted cell: at the start of a cell, and not as a lone ditto mark
+// (a '"' followed by the delimiter or the end of the line).
+function opensQuote(t, i, delim, atStart) {
+  return t[i] === '"' && atStart && i + 1 < t.length && t[i + 1] !== delim && t[i + 1] !== "\n" && t[i + 1] !== "\r";
+}
+
+// The delimiter of the first row: a tab, else a semicolon, else a comma, counted outside quoted
+// cells (a wrapped first title is quoted and holds a line break).
+function detectDelimiter(text) {
+  const t = String(text || "");
+  const n = { "\t": 0, ";": 0, ",": 0 };
+  let quoted = false;
+  let atStart = true;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (quoted) {
+      if (ch === '"' && t[i + 1] === '"') i++;
+      else if (ch === '"') quoted = false;
+      continue;
+    }
+    if (ch === "\n" || ch === "\r") {
+      if (n["\t"] + n[";"] + n[","]) break;
+      atStart = true;
+      continue;
+    }
+    if (ch in n) {
+      n[ch]++;
+      atStart = true;
+      continue;
+    }
+    // Any delimiter may follow, so a quote at the start of a cell is judged against the tab.
+    if (opensQuote(t, i, "\t", atStart) && t[i + 1] !== "," && t[i + 1] !== ";") {
+      quoted = true;
+      continue;
+    }
+    if (ch !== " ") atStart = false;
+  }
+  return n["\t"] ? "\t" : n[";"] ? ";" : ",";
+}
+
+// Splits pasted text into rows of cells at the delimiter, respecting double quotes: a quoted cell
+// keeps its delimiters ("C 150, galv", "83,560,000") and its line breaks (a wrapped header or
+// note copied from a spreadsheet). A lone '"' (a ditto mark) is text, and so is a quote that is
+// never closed. Blank rows are dropped.
+function parseDelimited(text, delim) {
+  const t = String(text || "");
+  const literal = new Set();
+  for (;;) {
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let quoted = false;
+    let openedAt = -1;
+    for (let i = 0; i < t.length; i++) {
+      const ch = t[i];
+      if (quoted) {
+        if (ch === '"' && t[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (ch === '"') quoted = false;
+        else cur += ch;
+      } else if (!literal.has(i) && opensQuote(t, i, delim, !cur.trim())) {
+        quoted = true;
+        openedAt = i;
+        cur = "";
+      } else if (ch === delim) {
+        row.push(cur.trim());
+        cur = "";
+      } else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && t[i + 1] === "\n") i++;
+        row.push(cur.trim());
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else cur += ch;
+    }
+    if (quoted) {
+      literal.add(openedAt);
+      continue;
+    }
+    row.push(cur.trim());
+    rows.push(row);
+    return rows.filter((r) => r.some((c) => c !== ""));
+  }
+}
+
+// The table's decimal mark, from the values that can only be read one way: "28,5" or "0,750"
+// (a comma that cannot group thousands), "1,234,567" (commas that must), and so on. Cells that
+// are not numbers ("n.a.", "-") say nothing. A semicolon-separated file implies a decimal comma
+// unless its values say otherwise.
+function tableDecimalMark(cells, delim) {
+  let dot = 0, comma = 0;
+  for (const raw of cells) {
+    const s = String(raw ?? "").replace(/\s+/g, "");
+    if (!/^[-+]?[\d.,]*\d[\d.,]*(e[-+]?\d+)?$/i.test(s)) continue;
+    const commas = (s.match(/,/g) || []).length;
+    const dots = (s.match(/\./g) || []).length;
+    if (commas && dots) {
+      if (s.lastIndexOf(".") > s.lastIndexOf(",")) dot++;
+      else comma++;
+    } else if (commas > 1) dot++;
+    else if (dots > 1) comma++;
+    else if (/e[-+]?\d+$/i.test(s)) {
+      if (commas) comma++;
+      else if (dots) dot++;
+    } else if (commas === 1 && !isAmbiguousNumber(s)) comma++;
+    else if (dots === 1 && !isAmbiguousDot(s)) dot++;
+  }
+  if (dot && !comma) return ".";
+  if (comma && !dot) return ",";
+  if (!dot && !comma && delim === ";") return ",";
+  return null;
+}
+
+const PASTE_UNITS = {
+  mm: { label: "mm², mm⁴, mm³", f: { A: 1, Av: 1, I: 1, Z: 1 } },
+  cm: { label: "cm², cm⁴, cm³", f: { A: 1e2, Av: 1e2, I: 1e4, Z: 1e3 } },
+  kmm: { label: "10³ mm², 10⁶ mm⁴, 10³ mm³", f: { A: 1e3, Av: 1e3, I: 1e6, Z: 1e3 } },
+};
+const NUM_KEYS = ["A", "I", "Z", "Av", "h", "mass"];
+const SECTION_KEYS = ["A", "I", "Z", "Av"];
+
+// Parses rows pasted from a spreadsheet (tab separated) or a CSV. The first row names the
+// columns; Name, A, I and Z are required. Units are read from the titles' brackets and from
+// units rows under the titles ("mm2" then "x10^2"). units: a key of PASTE_UNITS for A, Av, I and
+// Z; a table whose stated units contradict it is refused with the right ones named. h is in mm
+// unless its units say cm or m; the mass is in kg/m. Every row is checked for physical
+// consistency (see beamPlausibility), which catches unit slips and misread separators.
+function parseBeamTable(text, units, material) {
+  const src = String(text || "");
+  const delim = detectDelimiter(src);
+  const table = parseDelimited(src, delim);
+  if (table.length < 2) return { beams: [], errors: ["Paste a header row and at least one beam."], notes: [], header: [] };
+  const titles = table[0].map((t) => t.replace(/\s+/g, " "));
+  const keys = titles.map(headerKey);
+  const header = keys.slice();
+  const notes = [];
+  // The first column of each kind is used; say so when there are more, and which are ignored.
+  keys.forEach((k, j) => {
+    const first = k ? keys.indexOf(k) : j;
+    if (first !== j) {
+      notes.push(`Columns "${titles[first]}" and "${titles[j]}" both look like ${k === "name" ? "the name" : k}; using "${titles[first]}".`);
+      header[j] = null;
+    }
+  });
+  const ignored = titles.filter((t, j) => t && !keys[j]);
+  if (ignored.length) notes.push(`Columns not used: ${ignored.join(", ")}.`);
+  const missingCols = ["name", "A", "I", "Z"].filter((k) => !header.includes(k));
+  if (missingCols.length) {
+    const zHint = missingCols.includes("Z") && titles.some((t) => AMBIGUOUS_Z_HEADERS.includes(headerName(t)))
+      ? " Zx, Sx and W are not read as Z, because tables use them for different moduli; name the elastic section modulus column Wel or Z."
+      : "";
+    return { beams: [], errors: [`The header row needs columns for ${missingCols.join(", ")}. Found: ${titles.join(", ")}.${zHint}`], notes, header };
+  }
+  // Units rows: rows right under the titles whose A, I and Z cells are unit text rather than
+  // numbers ("mm2", "x10^2", "[cm4]"), whatever their name cell says ("Units", "-").
+  const col = (k) => header.indexOf(k);
+  const isUnitCell = (c) => {
+    const v = String(c ?? "").trim();
+    return v !== "" && !Number.isFinite(parseNum(v)) && /mm|cm|in|10|\^|[x×]|[²³⁴]/i.test(v);
+  };
+  let unitRows = 0;
+  while (unitRows < 3 && table[1 + unitRows] && ["A", "I", "Z"].every((k) => isUnitCell(table[1 + unitRows][col(k)]))) unitRows++;
+  const unitText = titles.map((t, j) => [bracketText(t), ...table.slice(1, 1 + unitRows).map((r) => r[j] ?? "")].join(" ").trim());
+  const body = table.slice(1 + unitRows);
+  const errors = [];
+  const label = (u) => PASTE_UNITS[u].label;
+  const stated = header.map((k, j) => (SECTION_KEYS.includes(k) ? { k, j, f: statedFactor(unitText[j], k) } : null)).filter((c) => c && c.f !== null);
+  if (stated.some((c) => Number.isNaN(c.f))) return { beams: [], errors: ["The table gives inch units. Convert it to mm or cm first."], notes, header };
+  let fitting = Object.keys(PASTE_UNITS);
+  for (const c of stated) {
+    const u = unitsWithFactor(c.k, c.f);
+    if (!u.length) return { beams: [], errors: [`The units of column "${titles[c.j]}" (${unitText[c.j]}) are none the app reads. Use mm², mm⁴, mm³, cm², cm⁴, cm³, or 10³ mm², 10⁶ mm⁴, 10³ mm³.`], notes, header };
+    fitting = fitting.filter((x) => u.includes(x));
+  }
+  if (stated.length && !fitting.length) return { beams: [], errors: [`The units given for A, I and Z do not belong to one system (${stated.map((c) => `${titles[c.j]}: ${unitText[c.j]}`).join("; ")}).`], notes, header };
+  const statedUnits = stated.length ? fitting : null;
+  if (statedUnits && !statedUnits.includes(units)) {
+    const named = statedUnits.map(label).join(" or ");
+    return {
+      beams: [], notes, header,
+      errors: [`The table gives ${named}, but the units are set to ${label(units)}.`],
+      unitHint: `The table's units are ${named}: switch the units to ${named}.`,
+    };
+  }
+  const hFactor = lengthFactorOf(unitText[col("h")]);
+  if (header.includes("h") && hFactor === null) return { beams: [], errors: ["The depth h is not in mm, cm or m. Convert that column first."], notes, header };
+  if (header.includes("mass") && unitWords(unitText[col("mass")]).some((w) => /^(lbs?|lb\/ft|plf)$/.test(w))) return { beams: [], errors: ["The mass is not in kg/m. Convert that column first."], notes, header };
+  const rows = body.map((cells, i) => {
+    const row = {};
+    header.forEach((k, j) => {
+      if (k) row[k] = cells[j];
+    });
+    // Cells beyond the titles: usually unquoted thousands separators in a CSV ("83,560,000").
+    const extra = cells.slice(titles.length).filter((c) => c !== "").length;
+    return { row, extra, count: cells.length, label: `Row ${i + 2 + unitRows}${row.name ? ` (${String(row.name).replace(/\s+/g, " ")})` : ""}` };
+  });
+  const decimal = tableDecimalMark(rows.flatMap(({ row }) => NUM_KEYS.map((k) => row[k])), delim);
+  // Raw numbers (table units), with the problems that do not depend on the units.
+  const parsed = rows.map(({ row, label: rowLabel, extra, count }) => {
+    const errs = [];
+    const raw = {};
+    if (extra) errs.push(`${rowLabel}: has ${count} cells but the header has ${titles.length}. In a CSV, numbers with thousands separators must be in quotes.`);
+    for (const k of NUM_KEYS) {
+      const cell = row[k];
+      if (cell === undefined || String(cell).trim() === "") continue;
+      // With no decimal mark known, "1,808", and for a section property "1.808", could be
+      // either; never guessed.
+      if (!decimal && (isAmbiguousNumber(cell) || (SECTION_KEYS.includes(k) && isAmbiguousDot(cell)))) {
+        errs.push(`${rowLabel}: ${ambiguityProblem(k, cell)}`);
+        continue;
+      }
+      const v = parseNum(cell, decimal);
+      if (Number.isFinite(v)) raw[k] = k === "h" ? v * hFactor : v;
+      else if (["A", "I", "Z"].includes(k)) errs.push(`${rowLabel}: ${k} "${cell}" is not a number.`);
+    }
+    return { row, label: rowLabel, raw, errs, material: matchMaterial(row.material) || material };
+  });
+  const convert = (raw, u) => {
+    const f = PASTE_UNITS[u]?.f || PASTE_UNITS.mm.f;
+    return { A: raw.A * f.A, I: raw.I * f.I, Z: raw.Z * f.Z, Av: (raw.Av ?? 0) * f.Av, h: raw.h ?? null, mass: raw.mass ?? null };
+  };
+  const implausible = (p, u) => (["A", "I", "Z"].every((k) => p.raw[k] > 0) ? beamPlausibility({ ...convert(p.raw, u), material: p.material }) : []);
+  const beams = [];
+  const seen = new Set();
+  for (const p of parsed) {
+    const { row, raw, errs } = p;
+    if (errs.length) {
+      errors.push(...errs);
+      continue;
+    }
+    const v = convert(raw, units);
+    const beam = normaliseBeam({
+      name: row.name, shape: "manual", material: p.material,
+      A: v.A, I: v.I, Z: v.Z, Av: v.Av, h: v.h, mass: v.mass,
+      source: row.source || AUTO_SOURCES[2], updated: todayIso(),
+    });
+    const bad = beam ? implausible(p, units) : [];
+    if (!beam) errors.push(`${p.label}: needs a name and numbers greater than zero for A, I and Z.`);
+    else if (bad.length) errors.push(...bad.map((x) => `${p.label}: ${x}`));
+    else if (seen.has(beam.name.toLowerCase())) errors.push(`${p.label}: the name appears twice; only the first is used.`);
+    else {
+      seen.add(beam.name.toLowerCase());
+      beams.push(beam);
+    }
+  }
+  // A likely unit slip, when the table does not state its units: rows that do not fit these units
+  // but all fit other ones; or sections whose depth (about 2·I/Z) is implausible. mm and cm cannot
+  // be told apart from the property ratios alone, so the depth is the remaining clue.
+  const readable = parsed.filter((p) => !p.errs.length && ["A", "I", "Z"].every((k) => p.raw[k] > 0));
+  let unitHint = "";
+  if (!statedUnits && readable.some((p) => implausible(p, units).length)) {
+    const fits = Object.keys(PASTE_UNITS).filter((u) => u !== units && readable.every((p) => !implausible(p, u).length));
+    if (fits.length === 1) unitHint = `These values do not fit ${label(units)}, but they all fit ${label(fits[0])}. If that is the table's unit, switch the units to ${label(fits[0])}.`;
+    else if (fits.length) unitHint = `These values do not fit ${label(units)}. They fit ${fits.map(label).join(" and also ")}: check which units the table uses.`;
+  }
+  // Depth, about 2·I/Z, row by row: read in mm, no beam section here is under 40 mm deep; read in
+  // cm or 10³ units, none is over 1.2 m. Such rows suggest the other unit, whether or not the
+  // table states its units (it may be mislabelled), and whatever other rows do.
+  const depthOf = (b) => (2 * b.I) / b.Z;
+  const odd = beams.filter((b) => (units === "mm" ? depthOf(b) < 40 : depthOf(b) > 1200));
+  if (odd.length) {
+    const shown = `${odd.slice(0, 3).map((b) => `${b.name} ${formatNum(depthOf(b), 0)} mm`).join(", ")}${odd.length > 3 ? ` and ${odd.length - 3} more` : ""}`;
+    const other = units === "mm" ? "cm" : "mm";
+    unitHint = [unitHint, `${odd.length === beams.length ? "These sections" : "Some sections"} would be very ${units === "mm" ? "shallow" : "deep"} (2·I/Z: ${shown}). If the table is in ${other}², ${other}⁴ and ${other}³, switch the units to ${label(other)}.`].filter(Boolean).join(" ");
+  }
+  return { beams, errors, notes, header, unitHint };
+}
+
+function pasteCardHtml() {
+  const r = ui.pasteResult;
+  let result = "";
+  if (r) {
+    const names = new Set(effectiveBeams().map((b) => b.name.toLowerCase()));
+    const replacing = r.beams.filter((b) => names.has(b.name.toLowerCase())).length;
+    const rows = r.beams
+      .slice(0, 8)
+      .map((b) => `<tr><td>${esc(b.name)}</td><td class="num">${esc(formatNum(b.A, 1))}</td><td class="num">${esc(formatNum(b.I, 0))}</td><td class="num">${esc(formatNum(b.Z, 0))}</td><td class="num">${esc(formatNum(b.Av, 1))}</td><td class="num">${esc(formatNum(b.h ?? NaN, 1))}</td><td class="num">${esc(formatNum((2 * b.I) / b.Z, 0))}</td><td>${names.has(b.name.toLowerCase()) ? badge("Replaces", "warn") : badge("New", "ok")}</td></tr>`)
+      .join("");
+    result = `
+      ${r.unitHint ? `<p class="note warn">${esc(r.unitHint)}</p>` : ""}
+      ${r.errors.length ? `<ul class="warn-list">${r.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>` : ""}
+      ${r.notes?.length ? `<p class="hint">${r.notes.map(esc).join(" ")}</p>` : ""}
+      ${r.beams.length ? `<div class="scroll"><table class="data tight"><thead><tr><th>Name</th><th>A (mm²)</th><th>I (mm⁴)</th><th>Z (mm³)</th><th>Av (mm²)</th><th>h (mm)</th><th title="Twice I/Z: the depth of a section symmetric about its bending axis. A quick check of the units.">≈ depth 2I/Z (mm)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${r.beams.length > 8 ? `<p class="hint">…and ${r.beams.length - 8} more.</p>` : ""}
+      <div class="actions form-actions"><button class="btn primary" type="button" data-act="paste-apply">Add ${r.beams.length} beam${r.beams.length === 1 ? "" : "s"}${replacing ? ` (${replacing} replace existing)` : ""}</button></div>` : ""}`;
+  }
+  return `<section class="card span-2">
+    <div class="row-head">
+      <div><h2>Paste from a spreadsheet</h2><p class="hint">Copy rows from a supplier's section table, including the header row. Needs columns Name, A, I and Z (the elastic modulus); Av, h (mm), mass (kg/m), material and source are optional.</p></div>
+      <button class="btn ghost" type="button" data-act="paste-toggle">Close</button>
+    </div>
+    <div class="fields">
+      <label class="label"><span>Units of A, I, Z, Av</span><select class="sel" data-act="paste-units">${options(Object.entries(PASTE_UNITS).map(([value, u]) => ({ value, label: u.label })), ui.pasteUnits)}</select></label>
+      <label class="label"><span>Material</span><select class="sel" data-act="paste-material">${options(BEAM_MATERIALS, ui.pasteMaterial)}</select></label>
+    </div>
+    <label class="label paste-box"><span>Rows</span><textarea class="field area" rows="6" spellcheck="false" data-act="paste-text" placeholder="Name&#9;A&#9;I&#9;Z&#9;Av&#10;C 150x65x20x2.0&#9;5.87&#9;203&#9;27.1&#9;3.0">${esc(ui.pasteText)}</textarea></label>
+    <div class="actions form-actions"><button class="btn" type="button" data-act="paste-check">Check rows</button></div>
+    ${result}
+  </section>`;
+}
+
+/* ---- Beams tab ---------------------------------------------------------------------------- */
+
+function libraryStatusText() {
+  const n = effectiveBeams().length;
+  const count = `${n} beam${n === 1 ? "" : "s"}`;
+  if (lib.loading && lib.source === "none") return "Loading beams.json from GitHub…";
+  if (lib.source === "github") {
+    const when = lib.base.updated ? `, updated ${lib.base.updated.slice(0, 10)}` : "";
+    return `${count} · beams.json revision ${lib.base.revision}${when}${lib.loading ? " · checking for updates…" : ""}`;
+  }
+  if (lib.source === "cache") return `${count} · copy saved in this browser${lib.loading ? " · checking GitHub…" : ""}`;
+  return `${count} · not loaded from GitHub`;
+}
+
+function beamRowStatus(b, conflicts) {
+  if (conflicts.some((c) => lower(c.name) === lower(b.name))) return badge("Changed on GitHub too", "danger");
+  const onGh = lib.base.beams.find((x) => x.name === b.name);
+  if (!onGh) return badge("Not on GitHub", "warn");
+  if (!sameBeam(onGh, b)) return badge("Edited here", "warn");
+  return badge("On GitHub", "ok");
+}
+
+// Sections the model uses that are saved with it but not in the library (by exact name).
+function modelOnlySections(mod) {
+  const defs = mod.sectionDefs || {};
+  return sectionNamesUsed(mod).filter((n) => Object.prototype.hasOwnProperty.call(defs, n) && !SECTION_LIBRARY.some((s) => s !== CUSTOM_SECTION && s.name === n));
+}
+// Library beams the model uses whose A, I, Z or Av differ from the copy saved with the model.
+function staleSectionNames(mod) {
+  const defs = mod.sectionDefs || {};
+  return sectionNamesUsed(mod).filter((n) => {
+    const b = SECTION_LIBRARY.find((s) => s !== CUSTOM_SECTION && s.name === n);
+    return b && Object.prototype.hasOwnProperty.call(defs, n) && sectionPropsDiffer(b, defs[n]).length;
+  });
+}
+function beamSummary(b) {
+  return b ? `A ${formatNum(b.A, 1)} · I ${formatNum(b.I, 0)} · Z ${formatNum(b.Z, 0)} · Av ${formatNum(b.Av, 1)}` : "deleted";
+}
+
+function conflictsHtml(conflicts) {
+  if (!conflicts.length) return "";
+  const rows = conflicts.map((c) => {
+    const sameProps = c.theirs && c.mine && !sectionPropsDiffer(c.theirs, c.mine).length;
+    return `<tr>
+      <td class="nw"><span class="beam-name">${esc(c.name)}</span></td>
+      <td>${esc(beamSummary(c.theirs))}</td>
+      <td>${esc(beamSummary(c.mine))}${sameProps ? ' <span class="subtle">(same A, I, Z, Av; other details differ)</span>' : ""}</td>
+      <td class="nw row-actions">
+        <button class="btn sm-btn" type="button" data-act="conflict-theirs" data-name="${esc(c.name)}" aria-label="Keep the GitHub version of ${esc(c.name)}">Keep GitHub's</button>
+        <button class="btn sm-btn" type="button" data-act="conflict-mine" data-name="${esc(c.name)}" aria-label="Keep your version of ${esc(c.name)}">Keep mine</button>
+      </td>
+    </tr>`;
+  }).join("");
+  return `<div class="conflicts">
+    <p class="note danger">Someone else changed ${conflicts.length === 1 ? "a beam" : `${conflicts.length} beams`} on GitHub that ${conflicts.length === 1 ? "was" : "were"} also edited here. Choose which version to keep; nothing is saved until you do.</p>
+    <div class="scroll"><table class="data tight"><thead><tr><th>Beam</th><th>On GitHub now</th><th>Yours</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+
+function renderBeams(mod) {
+  const beams = effectiveBeams();
+  const diff = pendingDiff();
+  const conflicts = pendingConflicts();
+  const shapeLabel = (id) => (shapeSpec(id) || shapeSpec("manual")).label.replace(/ \(.*\)$/, "");
+  const sorted = beams.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  const rows = sorted
+    .map((b) => {
+      const isDefault = mod.defaultSection === b.name;
+      const confirming = ui.confirmDelete === b.name;
+      return `<tr>
+        <td class="nw"><span class="beam-name">${esc(b.name)}</span>${b.notes ? `<span class="subtle beam-note">${esc(b.notes)}</span>` : ""}</td>
+        <td>${esc(shapeLabel(b.shape))}</td>
+        <td>${esc(b.material || "—")}</td>
+        <td class="num">${esc(formatNum(b.h ?? NaN, 1))}</td>
+        <td class="num">${esc(formatNum(b.A, 1))}</td>
+        <td class="num">${esc(formatNum(b.I, 0))}</td>
+        <td class="num">${esc(formatNum(b.Z, 0))}</td>
+        <td class="num">${esc(formatNum(b.Av, 1))}</td>
+        <td class="num">${esc(formatNum(b.mass ?? NaN, 2))}</td>
+        <td>${beamRowStatus(b, conflicts)}</td>
+        <td class="nw row-actions">
+          <button class="btn sm-btn" type="button" data-act="beam-use" data-name="${esc(b.name)}" ${isDefault ? "disabled" : ""} title="Make this the model's default section" aria-label="${isDefault ? `${esc(b.name)} is the default section` : `Use ${esc(b.name)} as the default section`}">${isDefault ? "Default" : "Use"}</button>
+          <button class="btn sm-btn" type="button" data-act="beam-edit" data-name="${esc(b.name)}" aria-label="Edit ${esc(b.name)}">Edit</button>
+          <button class="btn sm-btn${confirming ? " danger" : ""}" type="button" data-act="beam-delete" data-name="${esc(b.name)}" aria-label="${confirming ? "Confirm delete of" : "Delete"} ${esc(b.name)}">${confirming ? "Confirm delete" : "Delete"}</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  const removedRows = diff.removed.length
+    ? `<p class="note">Deleted here, still on GitHub until you save: ${diff.removed.map((n) => `<span class="mono">${esc(n)}</span> <button class="btn ghost sm-btn" type="button" data-act="beam-restore" data-name="${esc(n)}" aria-label="Undo deleting ${esc(n)}">Undo</button>`).join(" ")}</p>`
+    : "";
+  const list = (names) => names.map((n) => `<span class="mono">${esc(n)}</span>`).join(", ");
+  const carried = modelOnlySections(mod);
+  // Same name as a library beam except for capitals: offer to point the model at the library's.
+  const respell = carried.filter((n) => beamNamed(beams, n));
+  const fromModel = carried.filter((n) => !beamNamed(beams, n));
+  const fromModelNote = fromModel.length
+    ? `<p class="note warn">This model carries ${fromModel.length === 1 ? "a section" : `${fromModel.length} sections`} that ${fromModel.length === 1 ? "is" : "are"} not in the library: ${list(fromModel)}. <button class="btn sm-btn" type="button" data-act="beams-from-model">Add to library</button></p>`
+    : "";
+  const respellNote = respell
+    .map((n) => {
+      const libName = beamNamed(beams, n).name;
+      return `<p class="note warn">The model's section <span class="mono">${esc(n)}</span> matches the library's <span class="mono">${esc(libName)}</span> except for capitals; it is analysed with the copy saved with the model. <button class="btn sm-btn" type="button" data-act="beam-respell" data-name="${esc(n)}">Use the library's ${esc(libName)}</button></p>`;
+    })
+    .join("");
+  // A missing name that only differs from a library beam in capitals or spaces is pointed at that
+  // beam; any other gets a button that opens the form under its name.
+  const missing = sectionNamesUsed(mod).filter((n) => resolveSection(n, {}, mod.sectionDefs).missing);
+  const missingNote = missing.length
+    ? `<p class="note danger">This model uses ${missing.length === 1 ? "a section" : `${missing.length} sections`} that ${missing.length === 1 ? "is" : "are"} in neither the library nor saved with the model: ${list(missing)}. Add ${missing.length === 1 ? "it" : "them"} with the right properties, or choose another section on the Geometry tab. ${missing
+        .map((n) => {
+          const near = beamNamed(beams, n);
+          return near
+            ? `<button class="btn sm-btn" type="button" data-act="beam-respell" data-name="${esc(n)}">Use the library's ${esc(near.name)}</button>`
+            : `<button class="btn sm-btn" type="button" data-act="beam-add-named" data-name="${esc(n)}">Add ${esc(n)}</button>`;
+        })
+        .join(" ")}</p>`
+    : "";
+  const usedNames = new Set(sectionNamesUsed(mod));
+  const unusedCopies = Object.keys(mod.sectionDefs || {}).filter((n) => !usedNames.has(n));
+  const unusedNote = unusedCopies.length
+    ? `<p class="note">Saved with this model but not used by it: ${list(unusedCopies)}. They stay selectable on the Geometry tab. <button class="btn ghost sm-btn" type="button" data-act="copies-remove">Remove ${unusedCopies.length === 1 ? "it" : "them"}</button></p>`
+    : "";
+  const stale = staleSectionNames(mod);
+  const staleNote = stale.length
+    ? `<p class="note warn">The library's values for ${list(stale)} differ from the ${stale.length === 1 ? "copy" : "copies"} saved with this model; the analysis uses the library's (the QA tab lists the differences). If the saved values are the right ones, edit the library beam instead. <button class="btn sm-btn" type="button" data-act="sections-accept">Use the library's values</button></p>`
+    : "";
+  // Announced through the page's single live region (see render), so not role="status" here.
+  const msg = lib.message
+    ? `<p class="note ${esc(lib.message.tone || "muted")}">${esc(lib.message.text)}${lib.message.link ? ` <a class="link" data-act="link" data-name="message" href="${esc(lib.message.link)}" target="_blank" rel="noopener">${esc(lib.message.linkText || "Open")}</a>` : ""}</p>`
+    : "";
+  const pendingParts = [
+    diff.added.length ? `${diff.added.length} added` : "",
+    diff.changed.length ? `${diff.changed.length} edited` : "",
+    diff.removed.length ? `${diff.removed.length} deleted` : "",
+  ].filter(Boolean).join(", ");
+  const pendingNote = diff.count
+    ? `<p class="note warn">${diff.count} change${diff.count === 1 ? "" : "s"} in this browser not on GitHub yet (${esc(pendingParts)}). <button class="btn ghost sm-btn${ui.confirmDiscard ? " danger" : ""}" type="button" data-act="beams-discard" ${lib.saving ? "disabled" : ""}>${ui.confirmDiscard ? "Confirm: discard them" : "Discard"}</button></p>`
+    : "";
+  const empty = `<div class="empty"><p>No beams in the library yet.</p><p class="hint">Add the sections you use. They are stored in beams.json in the ${esc(BEAM_REPO.owner)}/${esc(BEAM_REPO.repo)} repository, so everyone using CBA gets them.</p></div>`;
+  const tokenTail = lib.token ? lib.token.slice(-4) : "";
+  const ghCard = `<section class="card">
+    <h2>GitHub</h2>
+    <p class="hint">The library is <a class="link" data-act="link" data-name="file" href="${GH_FILE_URL}" target="_blank" rel="noopener">beams.json</a> in ${esc(BEAM_REPO.owner)}/${esc(BEAM_REPO.repo)}. "Save to GitHub" commits it to ${esc(BEAM_REPO.branch)}; every change is kept in the <a class="link" data-act="link" data-name="history" href="${GH_HISTORY_URL}" target="_blank" rel="noopener">file history</a>. Reading needs no token.</p>
+    ${lib.token
+      ? `<div class="token-row"><span class="mono-note" style="margin:0">Token set · ends …${esc(tokenTail)}${lib.remember ? " · remembered on this device" : " · forgotten when the page closes"}</span><button class="btn ghost sm-btn" type="button" data-act="gh-forget">Forget token</button></div>`
+      : `<label class="label" style="margin-top:0.75rem"><span>GitHub token (needed to save)</span><input class="field" type="password" autocomplete="off" spellcheck="false" data-act="gh-token" placeholder="github_pat_… or ghp_…"></label>`}
+    <label class="check"><input type="checkbox" data-act="gh-remember" ${lib.remember ? "checked" : ""}> Remember the token on this device</label>
+    <details class="howto">
+      <summary>How to get a token</summary>
+      <ol>
+        <li>Signed in to the ${esc(BEAM_REPO.owner)} GitHub account, open <a class="link" data-act="link" data-name="token" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Settings → Developer settings → Fine-grained tokens → Generate new token</a>.</li>
+        <li>Repository access: <b>Only select repositories</b> → ${esc(BEAM_REPO.repo)}. Permissions → Repository → <b>Contents: Read and write</b>. Pick an expiry.</li>
+        <li>Paste the token above. On your own GitHub account instead, you need collaborator access to ${esc(BEAM_REPO.repo)} and a classic token with the <b>public_repo</b> scope, because fine-grained tokens only reach repositories their owner controls.</li>
+      </ol>
+      <p class="hint">The token is sent only to api.github.com. A remembered token is kept in this browser's storage for lumax-energy.github.io, which the other Lumax pages on that address can also read; leave "Remember" off on shared computers.</p>
+    </details>
+  </section>`;
+  return `<div class="beams-grid">
+    <section class="card span-2">
+      <div class="row-head">
+        <div>
+          <h2>Beam library</h2>
+          <p class="hint" id="lib-status">${esc(libraryStatusText())}</p>
+        </div>
+        <div class="actions" id="lib-actions">
+          <button class="btn" type="button" data-act="new-beam">${iconPlus()} Add beam</button>
+          <button class="btn" type="button" data-act="paste-toggle">Paste table</button>
+          <button class="btn" type="button" data-act="beams-reload" ${lib.loading || lib.saving ? 'aria-disabled="true"' : ""}>${iconReset()} Reload</button>
+          <button class="btn" type="button" data-act="beams-download">${iconDownload()} beams.json</button>
+          <button class="btn primary" type="button" data-act="beams-save" ${!lib.saving && ((!diff.count && !lib.missing && !lib.uncertain) || conflicts.length) ? "disabled" : ""} ${lib.saving ? 'aria-disabled="true"' : ""} ${conflicts.length ? 'title="Choose which version to keep first"' : ""}>${iconUpload()} ${lib.saving ? "Saving…" : diff.count ? `Save to GitHub (${diff.count})` : lib.missing || lib.uncertain ? "Save to GitHub" : "Saved to GitHub"}</button>
+        </div>
+      </div>
+      <div id="lib-notes">${msg}${conflictsHtml(conflicts)}${pendingNote}${removedRows}${missingNote}${staleNote}${respellNote}${fromModelNote}${unusedNote}</div>
+      ${beams.length ? `<div class="scroll"><table class="data min-64 beam-table">
+        <thead><tr><th>Name</th><th>Shape</th><th>Material</th><th class="r">h (mm)</th><th class="r">A (mm²)</th><th class="r">I (mm⁴)</th><th class="r">Z (mm³)</th><th class="r">Av (mm²)</th><th class="r">kg/m</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : empty}
+    </section>
+    ${ui.beamDraft ? beamFormHtml(ui.beamDraft) : ""}
+    ${ui.pasteOpen ? pasteCardHtml() : ""}
+    ${ghCard}
+    <section class="card">
+      <h2>How the library is used</h2>
+      <ul class="scope-list">
+        <li>Sections are matched by name. The Geometry tab lists every library beam; "Custom" uses the model's own I, Z, A and Av.</li>
+        <li>A model keeps a copy of the properties of the beams it uses. If a beam is later deleted or renamed in the library, the model still analyses with its copy and the QA tab says so.</li>
+        <li>Properties are major-axis, for sections symmetric about the bending axis. Calculated values are nominal gross-section values; check them against the supplier or design-code tables before design use.</li>
+        <li>Edits stay in this browser until saved to GitHub. Saving keeps the beams colleagues saved in the meantime; if someone changed or deleted a beam you also edited, nothing is saved until you choose which version to keep.</li>
+      </ul>
+    </section>
+  </div>`;
+}
+
+// Re-renders now, unless a text field is being typed in: then after it loses focus, so an
+// update arriving from the network never throws away half-typed input.
+// Whether rebuilding the page now would take something from the user: a text field in use, a
+// select being opened, or anything else focused in the page that render() cannot give focus back
+// to. Buttons, links, checkboxes and closed selects with data-act get their focus back
+// (restoreFocus).
+function focusBusy(el) {
+  const app = typeof document !== "undefined" ? document.getElementById("app") : null;
+  if (!el || el === document.body || !app?.contains(el)) return false;
+  // A select is busy only while its list may be open (being pressed); a closed one gets its
+  // focus back like a button.
+  if (el.tagName === "SELECT") return ui.pointerDown || !el.hasAttribute("data-act");
+  const restorable = el.hasAttribute("data-act") && (el.tagName === "BUTTON" || el.tagName === "A" || (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio")));
+  return !restorable;
+}
+
+// Re-renders now, unless the user is in a field (see focusBusy): then once they have left it and
+// are not in another, so an update arriving from the network never throws away half-typed input,
+// a caret position or an open list. Meanwhile the message is announced and the Beams tab's status
+// line, buttons and messages are brought up to date in place.
+function renderWhenIdle() {
+  const el = typeof document !== "undefined" ? document.activeElement : null;
+  if (!focusBusy(el)) {
+    render();
+    return;
+  }
+  announce(lib.message);
+  refreshLibraryChrome();
+  // Already waiting on this element. (If focus moved without its blur reaching us, as in a window
+  // that is not focused, wait on the element that has focus now.)
+  if (ui.renderQueued && ui.waitingOn === el) return;
+  ui.renderQueued = true;
+  waitForIdle(el);
+}
+
+function waitForIdle(el) {
+  ui.waitingOn = el;
+  el.addEventListener("blur", () => {
+    const go = () => {
+      if (!ui.renderQueued) return;
+      const now = document.activeElement;
+      if (focusBusy(now)) {
+        waitForIdle(now);
+        return;
+      }
+      const focus = focusedControl(true);
+      render();
+      restoreFocus(focus);
+    };
+    if (ui.pointerDown) afterPress(go);
+    else setTimeout(go, 0);
+  }, { once: true });
+}
+
+// The field blurs when a button is pressed to leave it, before the click: rebuilding the page then
+// would remove the button under the pointer and lose the click. So wait until the press has ended
+// in a click (or, if it does not, shortly after the release).
+function afterPress(go) {
+  let timer = 0;
+  const finish = () => {
+    document.removeEventListener("click", finish, true);
+    document.removeEventListener("pointerup", released, true);
+    document.removeEventListener("mouseup", released, true);
+    clearTimeout(timer);
+    setTimeout(go, 0);
+  };
+  const released = () => {
+    clearTimeout(timer);
+    timer = setTimeout(finish, 300);
+  };
+  document.addEventListener("click", finish, true);
+  document.addEventListener("pointerup", released, true);
+  document.addEventListener("mouseup", released, true);
+  timer = setTimeout(finish, 30000);
+}
+
+// While a field holds the render: the header's status badge and summary line (the analysis may
+// have changed with the library), and on the Beams tab its status line, buttons and messages,
+// redrawn in place. None of them contain the field.
+function refreshLibraryChrome() {
+  if (typeof document === "undefined") return;
+  const result = analyze(model);
+  const badgeEl = document.querySelector(".header .badge");
+  if (badgeEl) badgeEl.outerHTML = badge(result.status, statusTone(result));
+  const meta = document.querySelector(".meta");
+  if (meta) meta.innerHTML = metaHtml(result);
+  if (ui.tab !== "beams") return;
+  const active = document.activeElement;
+  const fresh = document.createElement("template");
+  fresh.innerHTML = renderBeams(model);
+  for (const id of ["lib-status", "lib-actions", "lib-notes"]) {
+    const live = document.getElementById(id);
+    const next = fresh.content.getElementById(id);
+    if (live && next && !live.contains(active)) live.innerHTML = next.innerHTML;
+  }
+}
 
 let model = excelExample();
 
@@ -1271,7 +3519,7 @@ function hydrate() {
     model = resizeElements(
       withUniqueComboIds({
         ...base,
-        ...parsed,
+        ...withCustomNames(parsed),
         combinations: (parsed.combinations ?? base.combinations).map((c) => ({
           ...c,
           factors: { ...zero, ...c.factors },
@@ -1731,6 +3979,20 @@ function multiDiagramHtml(id, title, unit, xs, series, nodeX) {
   </div>`;
 }
 
+// Library beams in natural order after "Custom", then every section saved with the model that
+// is not in the library (so one can be chosen again after switching away), then a missing
+// name the element uses, so the select shows what the element really uses.
+function sectionOptions(selected, mod) {
+  const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const names = SECTION_LIBRARY.slice(1).map((s) => s.name).sort(byName);
+  const list = [{ value: "Custom", label: "Custom" }, ...names.map((n) => ({ value: n, label: n }))];
+  const saved = Object.keys(mod?.sectionDefs || {}).filter((n) => !names.includes(n)).sort(byName);
+  list.push(...saved.map((n) => ({ value: n, label: `${n} (saved copy)` })));
+  const sel = selected || "Custom";
+  if (!list.some((o) => o.value === sel)) list.push({ value: sel, label: `${sel} (missing)` });
+  return options(list, sel);
+}
+
 function renderGeometry(mod, result) {
   // The custom properties are used by any element set to "Custom", not just when it is
   // the default, so the fields must stay editable in that case too.
@@ -1751,7 +4013,7 @@ function renderGeometry(mod, result) {
         <td class="mono">${i + 1}</td>
         <td><input class="field sm" data-act="element" data-index="${i}" data-field="description" value="${esc(el.description)}"></td>
         <td class="w-24"><input class="field sm" type="number" step="0.001" min="0.01" data-act="element" data-index="${i}" data-field="length" value="${esc(inputValue(el.length, 6))}"></td>
-        <td class="w-36"><select class="sel sm" data-act="element" data-index="${i}" data-field="section">${options(SECTION_LIBRARY.map((s) => s.name), el.section)}</select></td>
+        <td class="w-36"><select class="sel sm" data-act="element" data-index="${i}" data-field="section">${sectionOptions(el.section || mod.defaultSection, mod)}</select></td>
         <td class="mono">${esc(formatNum(sec?.I ?? 0, 0))}</td>
         <td class="mono">${esc(formatNum(sec?.Z ?? 0, 0))}</td>
         <td class="mono">${esc(formatNum(result.nodeX[i] ?? 0, 3))}</td>
@@ -1770,7 +4032,7 @@ function renderGeometry(mod, result) {
         <label class="label"><span>Material</span><select class="sel" data-act="patch" data-field="material">${options(MATERIALS, mod.material)}</select></label>
         <label class="label"><span>E (MPa)</span><input class="field" type="number" data-act="patch" data-field="customE" value="${esc(inputValue(eVal, 0))}" ${mod.material !== "Custom" ? "disabled" : ""}></label>
         <label class="label"><span>Density (kg/m³)</span><input class="field" type="number" data-act="patch" data-field="customDensity" value="${esc(inputValue(dVal, 2))}" ${mod.material !== "Custom" ? "disabled" : ""}></label>
-        <label class="label"><span>Default section</span><select class="sel" data-act="default-section">${options(SECTION_LIBRARY.map((s) => s.name), mod.defaultSection)}</select></label>
+        <label class="label"><span>Default section</span><select class="sel" data-act="default-section">${sectionOptions(mod.defaultSection, mod)}</select></label>
         <label class="label"><span>Stations / element</span><select class="sel" data-act="patch" data-field="stationsPerElement">${options([13, 26, 51], mod.stationsPerElement)}</select></label>
         <label class="label"><span>I (mm⁴)</span><input class="field" type="number" data-act="patch" data-field="customI" value="${esc(inputValue(mod.customI, 2))}" ${!isCustom ? "disabled" : ""}></label>
         <label class="label"><span>Z (mm³)</span><input class="field" type="number" data-act="patch" data-field="customZ" value="${esc(inputValue(mod.customZ, 2))}" ${!isCustom ? "disabled" : ""}></label>
@@ -1783,7 +4045,10 @@ function renderGeometry(mod, result) {
     <section class="card" style="min-width:0">
       <div class="row-head">
         <h2>Elements and supports</h2>
-        <button class="btn" type="button" data-act="add-span">Add span</button>
+        <div class="actions">
+          <button class="btn" type="button" data-act="new-beam">${iconPlus()} Add beam</button>
+          <button class="btn" type="button" data-act="add-span">Add span</button>
+        </div>
       </div>
       <div class="scroll">
         <table class="data min-56">
@@ -1793,7 +4058,7 @@ function renderGeometry(mod, result) {
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <p class="hint">Nodes are placed automatically from element lengths. I and Z are resolved from the section library. Pinned and roller restrain vertical displacement; fixed also restrains rotation.</p>
+      <p class="hint">Nodes are placed automatically from element lengths. I, Z, A and Av come from the beam library (Beams tab), or from the custom fields for "Custom". Pinned and roller restrain vertical displacement; fixed also restrains rotation.</p>
     </section>
   </div>`;
 }
@@ -2348,8 +4613,8 @@ function renderQa(mod, result) {
         <li>Capacity: up to 24 sequential elements and 25 nodes. Supports: Free, Pinned, Roller, Fixed.</li>
         <li>Interior point loads, moments and partial UDLs recovered with equivalent nodal loading and exact Macaulay terms.</li>
         <li>No plasticity, second-order effects, lateral-torsional buckling, or uplift/contact nonlinearity.</li>
-        <li>Section library: nominal IPE properties (EN 10365). Verify against the project-approved source before design use.</li>
-        <li>Deflection check uses the longest distance between consecutive vertical supports, not element length.</li>
+        <li>Beam library: beams.json in the ${esc(BEAM_REPO.owner)}/${esc(BEAM_REPO.repo)} GitHub repository, maintained on the Beams tab. Calculated properties are nominal gross-section values. Verify against the project-approved source before design use.</li>
+        <li>Deflection is checked on each span between consecutive vertical supports, and on each overhang, against that segment's own length.</li>
         <li>Combination factors remain the user’s design-basis responsibility.</li>
       </ul>
     </section>
@@ -2358,6 +4623,7 @@ function renderQa(mod, result) {
 
 function panelHtml(mod, result) {
   if (ui.tab === "geometry") return renderGeometry(mod, result);
+  if (ui.tab === "beams") return renderBeams(mod);
   if (ui.tab === "loads") return renderLoads(mod, result);
   if (ui.tab === "combos") return renderCombos(mod);
   if (ui.tab === "qa") return renderQa(mod, result);
@@ -2393,7 +4659,7 @@ function factorsLine(result) {
   return factorsText(result.selected.factors);
 }
 
-const FOCUS_ATTRS = ["data-act", "data-id", "data-view", "data-show", "data-tab", "data-preset", "data-field", "data-index", "data-factor", "data-x"];
+const FOCUS_ATTRS = ["data-act", "data-id", "data-view", "data-show", "data-tab", "data-preset", "data-field", "data-index", "data-factor", "data-x", "data-name"];
 
 // render() replaces every element, which would drop keyboard focus to the top of the page.
 // Buttons, selects and checkboxes keep focus while they act, so put it back on their
@@ -2404,10 +4670,10 @@ function sameControls(key) {
   return [...document.querySelectorAll("[data-act]")].filter((el) => FOCUS_ATTRS.every((a, i) => el.getAttribute(a) === key[i]));
 }
 
-function focusedControl() {
+function focusedControl(anyField = false) {
   const el = document.activeElement;
   if (!el || !el.hasAttribute?.("data-act")) return null;
-  if (!(el.tagName === "BUTTON" || el.tagName === "SELECT" || (el.tagName === "INPUT" && el.type === "checkbox"))) return null;
+  if (!anyField && !(el.tagName === "BUTTON" || el.tagName === "A" || el.tagName === "SELECT" || (el.tagName === "INPUT" && el.type === "checkbox"))) return null;
   const key = FOCUS_ATTRS.map((a) => el.getAttribute(a));
   return { key, index: sameControls(key).indexOf(el) };
 }
@@ -2418,16 +4684,40 @@ function restoreFocus(focus) {
   (matches[focus.index] ?? matches[0])?.focus({ preventScroll: true });
 }
 
+// Library messages are spoken through one live region that is never rebuilt; a region created
+// together with its text is not announced, and one rebuilt on every render repeats itself.
+// Once per message: re-rendering never repeats it, while a new message with the same text (a
+// second paste, a second edit) is announced again by clearing the region first.
+function announce(msg) {
+  const el = document.getElementById("sr-status");
+  if (!el || msg === ui.announced) return;
+  ui.announced = msg;
+  const text = msg?.text || "";
+  if (el.textContent !== text) el.textContent = text;
+  else if (text) {
+    el.textContent = "";
+    setTimeout(() => {
+      if (ui.announced === msg) el.textContent = text;
+    }, 60);
+  }
+}
+
+function metaHtml(result) {
+  const viewMeta = isAllView(model) ? `${shownComboResults(model, result).length} of ${result.comboResults.length} combinations shown` : factorsLine(result);
+  return `${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · default section ${esc(model.defaultSection)}, ${result.defaultI === null ? "not found" : `I = ${esc(formatNum(result.defaultI, 0))} mm⁴`} · ${esc(viewMeta)}`;
+}
+
 function render() {
+  ui.renderQueued = false;
+  ui.renderCount++;
   const focusKey = focusedControl();
   const result = analyze(model);
-  const tabs = TABS.map(
-    (t) => `<button class="tab${ui.tab === t.id ? " active" : ""}" type="button" data-act="tab" data-tab="${t.id}">${esc(t.label)}</button>`,
-  ).join("");
+  const unsaved = pendingDiff().count;
+  const tabs = TABS.map((t) => {
+    const extra = t.id === "beams" && unsaved ? ` <span class="tab-dot" title="${unsaved} change${unsaved === 1 ? "" : "s"} not saved to GitHub">${unsaved}</span>` : "";
+    return `<button class="tab${ui.tab === t.id ? " active" : ""}" type="button" data-act="tab" data-tab="${t.id}">${esc(t.label)}${extra}</button>`;
+  }).join("");
   const all = isAllView(model);
-  const viewMeta = all
-    ? `${shownComboResults(model, result).length} of ${result.comboResults.length} combinations shown`
-    : factorsLine(result);
   document.getElementById("app").innerHTML = `
     <header class="header">
       <div class="wrap header-inner">
@@ -2464,7 +4754,7 @@ function render() {
     <main class="wrap main">
       <p class="kicker">${all ? "Combination view" : "Selected combination"}</p>
       <h1 class="page-title">${all ? "All combinations" : esc(result.selected.name)}</h1>
-      <p class="meta">${result.nElements} elements · ${esc(formatNum(result.totalLength, 3))} m · E = ${esc(formatNum(result.E, 0))} MPa · default section ${esc(model.defaultSection)}, I = ${esc(formatNum(result.defaultI, 0))} mm⁴ · ${esc(viewMeta)}</p>
+      <p class="meta">${metaHtml(result)}</p>
       <div class="schematic">${schematicSvg(model, result)}${loadLegend(model, result)}</div>
       <nav class="tabs-wrap" aria-label="Sections"><div class="tabs">${tabs}</div></nav>
       <div class="panel">${panelHtml(model, result)}</div>
@@ -2479,6 +4769,7 @@ function render() {
   if (all) bindMultiDiagrams(result);
   else bindDiagrams(result);
   restoreFocus(focusKey);
+  announce(lib.message);
 }
 
 function bindDiagrams(result) {
@@ -2613,11 +4904,24 @@ function bindMultiDiagrams(result) {
   });
 }
 
+// "custom" in any capitals, or no name, is the model's own section: written "Custom", as the
+// selects show it.
+function withCustomNames(m) {
+  const fix = (n) => (isCustomName(n) ? "Custom" : n);
+  return {
+    ...m,
+    defaultSection: fix(m.defaultSection),
+    // An element section that is empty or null follows the default section (analyze uses
+    // section || defaultSection); only a written "custom" is rewritten.
+    elements: Array.isArray(m.elements) ? m.elements.map((el) => (el && typeof el.section === "string" && el.section.trim() !== "" && isCustomName(el.section) && el.section !== "Custom" ? { ...el, section: "Custom" } : el)) : m.elements,
+  };
+}
+
 function setModel(next) {
   // Presets, and files saved before the all-combinations view existed, carry no view
   // settings; keep the ones in use rather than dropping back to a single combination.
   next = withUniqueComboIds({ comboView: model.comboView, hiddenComboIds: model.hiddenComboIds, ...next });
-  model = resizeElements(next, next.nElements);
+  model = syncSectionDefs(resizeElements(withCustomNames(next), next.nElements));
   persist();
   ui.probeX = null;
   render();
@@ -2626,7 +4930,7 @@ function setModel(next) {
 function patch(partial) {
   let next = { ...model, ...partial };
   if (partial.nElements !== undefined) next = resizeElements(next, partial.nElements);
-  model = next;
+  model = syncSectionDefs(next);
   persist();
   render();
 }
@@ -2697,10 +5001,241 @@ function importJsonFile(file) {
   reader.readAsText(file);
 }
 
+function setDefaultSection(name) {
+  const els = model.elements.map((el) => (el.section === model.defaultSection ? { ...el, section: name } : el));
+  patch({ defaultSection: name, elements: els });
+}
+
+function showBeamForm() {
+  render();
+  const form = document.getElementById("beam-form");
+  form?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  form?.querySelector('[data-act="beam-dim"], [data-act="beam-prop"]')?.focus({ preventScroll: true });
+}
+
+// After an action removes or disables the control that had keyboard focus (a deleted row, a
+// closed form, "Use" turning into "Default"), focus moves to a nearby control instead of
+// dropping to the top of the page.
+function focusIfLost(act, name) {
+  focusFirst([act, name]);
+}
+// The first of the candidates ([act, name?]) that exists and can take focus, if focus was lost.
+function focusFirst(...candidates) {
+  for (const [act, name] of candidates) {
+    const a = document.activeElement;
+    if (a && a !== document.body) return;
+    const el = [...document.querySelectorAll(`[data-act="${act}"]`)].find((x) => !x.disabled && (name === undefined || x.getAttribute("data-name") === name));
+    el?.focus({ preventScroll: true });
+  }
+}
+
+function onBeamClick(act, t) {
+  const name = t.getAttribute("data-name");
+  const d = ui.beamDraft;
+  if (act === "new-beam") {
+    ui.tab = "beams";
+    ui.beamDraft = newBeamDraft(null);
+    showBeamForm();
+  } else if (act === "beam-add-named") {
+    // A section the model uses but nobody has: open the form under its name, cleaned up so the
+    // form can accept it, and point the model at the beam once added (repoint).
+    ui.tab = "beams";
+    const clean = String(name).trim().slice(0, BEAM_NAME_MAX).trim();
+    ui.beamDraft = { ...newBeamDraft(null), name: clean, nameTouched: true, repoint: name };
+    showBeamForm();
+  } else if (act === "beam-edit") {
+    ui.beamDraft = newBeamDraft(name);
+    showBeamForm();
+  } else if (act === "beam-cancel") {
+    const from = d?.from;
+    ui.beamDraft = null;
+    render();
+    if (from) focusIfLost("beam-edit", from);
+    focusIfLost("new-beam");
+  } else if (act === "beam-suggest-name") {
+    if (!d) return true;
+    d.nameTouched = false;
+    d.name = suggestBeamName(d.shape, d.dims);
+    const input = document.querySelector('#beam-form [data-act="beam-text"][data-field="name"]');
+    if (input) input.value = d.name;
+    updateBeamForm();
+  } else if (act === "beam-submit") {
+    if (!d) return true;
+    const res = draftResult(d);
+    if (!res.beam) {
+      updateBeamForm();
+      return true;
+    }
+    const op = d.mode === "edit" ? { op: "upsert", from: d.from, beam: res.beam, base: d.base } : { op: "upsert", beam: res.beam };
+    const renames = d.mode === "edit" ? [[d.from, res.beam.name]] : d.repoint && d.repoint !== res.beam.name ? [[d.repoint, res.beam.name]] : [];
+    commitBeamOps([op], renames);
+    lib.message = { tone: "ok", text: `${res.beam.name} ${d.mode === "edit" ? "updated" : "added"} in this browser. Press "Save to GitHub" to share it.` };
+    ui.beamDraft = null;
+    render();
+    focusIfLost("beam-edit", res.beam.name);
+  } else if (act === "beam-delete") {
+    if (ui.confirmDelete !== name) {
+      ui.confirmDelete = name;
+      render();
+      return true;
+    }
+    ui.confirmDelete = null;
+    const used = sectionNamesUsed(model).includes(name);
+    commitBeamOps([{ op: "delete", name }]);
+    if (d?.from === name) ui.beamDraft = null;
+    lib.message = { tone: "ok", text: `${name} deleted in this browser.${used ? " The current model keeps its copy of the properties." : ""} Press "Save to GitHub" to delete it for everyone.` };
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "beam-restore") {
+    const b = lib.base.beams.find((x) => x.name === name);
+    const taken = b ? effectiveBeams().find((x) => lower(x.name) === lower(name) && x.name !== name) : null;
+    if (taken) {
+      // Restoring would replace the newer beam that now has this name in other capitals.
+      lib.message = { tone: "warn", text: `Can't undo: "${taken.name}" now uses that name. Rename or delete "${taken.name}" first.` };
+    } else if (b) {
+      commitBeamOps([{ op: "upsert", beam: b }]);
+    }
+    render();
+    focusIfLost("beam-edit", name);
+    focusIfLost("new-beam");
+  } else if (act === "beam-use") {
+    lib.message = { tone: "ok", text: `${name} is now the model's default section.` };
+    setDefaultSection(name);
+    focusIfLost("beam-edit", name);
+  } else if (act === "beams-discard") {
+    if (lib.saving) return true;
+    if (!ui.confirmDiscard) {
+      ui.confirmDiscard = true;
+      render();
+      return true;
+    }
+    ui.confirmDiscard = false;
+    // The model's saved copies of the discarded beams go back to GitHub's values too.
+    const diff = pendingDiff();
+    const touched = new Set([...diff.added, ...diff.changed, ...diff.removed]);
+    lib.pending = [];
+    lib.editSeq++;
+    persistLibrary();
+    applyLibrary(touched, true);
+    lib.message = { tone: "muted", text: "Local changes discarded. The library matches GitHub." };
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "conflict-theirs" || act === "conflict-mine") {
+    const ops = lib.pending.filter((op) => lower(opName(op)) === lower(name));
+    noteTouched(ops.map(opName));
+    if (act === "conflict-theirs") {
+      lib.pending = lib.pending.filter((op) => !ops.includes(op));
+      lib.message = { tone: "muted", text: `Kept GitHub's version of ${name}.` };
+    } else {
+      // Now based on GitHub's current version, so saving replaces it with this one.
+      for (const op of ops) op.base = beamNamed(lib.base.beams, opName(op));
+      lib.message = { tone: "muted", text: `Kept your version of ${name}. Press "Save to GitHub" to replace GitHub's.` };
+    }
+    lib.editSeq++;
+    compactPending();
+    persistLibrary();
+    applyLibrary(act === "conflict-theirs" ? new Set(ops.map(opName)) : null, true);
+    render();
+    // The next choice to make, or Save once none are left.
+    focusFirst([act], ["conflict-mine"], ["beams-save"], ["new-beam"]);
+  } else if (act === "sections-accept") {
+    const names = staleSectionNames(model);
+    applyLibrary(new Set(names), true);
+    lib.message = { tone: "ok", text: `The model now keeps the library's values for ${names.join(", ")}.` };
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "beam-respell") {
+    const libName = beamNamed(effectiveBeams(), name)?.name;
+    if (libName && libName !== name) {
+      setModelQuietly(syncSectionDefs(renameModelSections(model, [[name, libName]])));
+      lib.message = { tone: "ok", text: `The model now uses the library's ${libName}.` };
+    }
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "beams-reload") {
+    loadLibrary();
+  } else if (act === "beams-save") {
+    saveLibraryToGitHub();
+  } else if (act === "beams-download") {
+    downloadBeamFile();
+  } else if (act === "gh-forget") {
+    lib.token = "";
+    lib.remember = false;
+    storageSet(GH_TOKEN_KEY, null);
+    render();
+    focusIfLost("gh-token");
+  } else if (act === "copies-remove") {
+    // Saved copies the model no longer uses (see syncSectionDefs) are dropped on request.
+    const used = new Set(sectionNamesUsed(model));
+    const defs = Object.fromEntries(Object.entries(model.sectionDefs || {}).filter(([n]) => used.has(n)));
+    const gone = Object.keys(model.sectionDefs || {}).filter((n) => !used.has(n));
+    setModelQuietly({ ...model, sectionDefs: defs });
+    lib.message = { tone: "ok", text: `Removed the unused saved ${gone.length === 1 ? "copy" : "copies"} of ${gone.join(", ")} from this model.` };
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "beams-from-model") {
+    // The sections the note lists: used by the model, saved with it, and not in the library
+    // under any capitalisation.
+    const beams = effectiveBeams();
+    const ops = modelOnlySections(model)
+      .filter((n) => !beamNamed(beams, n))
+      .map((n) => normaliseBeam({ ...model.sectionDefs[n], name: n }))
+      .filter(Boolean)
+      .map((beam) => ({ op: "upsert", beam }));
+    commitBeamOps(ops);
+    lib.message = { tone: "ok", text: `${ops.length} section${ops.length === 1 ? "" : "s"} from this model added in this browser. Press "Save to GitHub" to share ${ops.length === 1 ? "it" : "them"}.` };
+    render();
+    focusIfLost("new-beam");
+  } else if (act === "paste-toggle") {
+    ui.pasteOpen = !ui.pasteOpen;
+    ui.pasteResult = null;
+    render();
+  } else if (act === "paste-check") {
+    ui.pasteResult = parseBeamTable(ui.pasteText, ui.pasteUnits, ui.pasteMaterial);
+    render();
+  } else if (act === "paste-apply") {
+    const r = ui.pasteResult;
+    if (!r?.beams.length) return true;
+    const existing = new Map(effectiveBeams().map((b) => [b.name.toLowerCase(), b.name]));
+    const renames = [];
+    const ops = r.beams.map((beam) => {
+      const from = existing.get(beam.name.toLowerCase());
+      if (from && from !== beam.name) renames.push([from, beam.name]);
+      return from ? { op: "upsert", from, beam } : { op: "upsert", beam };
+    });
+    commitBeamOps(ops, renames);
+    lib.message = { tone: "ok", text: `${ops.length} beam${ops.length === 1 ? "" : "s"} added in this browser. Press "Save to GitHub" to share ${ops.length === 1 ? "it" : "them"}.` };
+    ui.pasteResult = null;
+    ui.pasteText = "";
+    ui.pasteOpen = false;
+    render();
+    focusFirst(["paste-toggle"], ["new-beam"]);
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// Two-step confirmations (Delete, Discard) lapse as soon as anything else is clicked, changed or
+// typed. Returns whether one was armed, so its button can be redrawn.
+function lapseConfirmations(act) {
+  const lapsed = (ui.confirmDelete !== null && act !== "beam-delete") || (ui.confirmDiscard && act !== "beams-discard");
+  if (act !== "beam-delete") ui.confirmDelete = null;
+  if (act !== "beams-discard") ui.confirmDiscard = false;
+  return lapsed;
+}
+
 function onClick(ev) {
   const t = ev.target.closest("[data-act]");
-  if (!t) return;
-  const act = t.getAttribute("data-act");
+  const act = t ? t.getAttribute("data-act") : null;
+  const lapsed = lapseConfirmations(act);
+  const renders = ui.renderCount;
+  if (t) handleClick(ev, t, act);
+  if (lapsed && ui.renderCount === renders) renderWhenIdle();
+}
+
+function handleClick(ev, t, act) {
+  if (onBeamClick(act, t)) return;
   if (act === "tab") {
     ui.tab = t.getAttribute("data-tab");
     render();
@@ -2785,6 +5320,13 @@ function onChange(ev) {
   if (!(t instanceof HTMLElement)) return;
   const act = t.getAttribute("data-act");
   if (!act) return;
+  const lapsed = lapseConfirmations(act);
+  const renders = ui.renderCount;
+  handleChange(t, act);
+  if (lapsed && ui.renderCount === renders) renderWhenIdle();
+}
+
+function handleChange(t, act) {
   if (act === "patch") {
     const field = t.getAttribute("data-field");
     const raw = t.value;
@@ -2793,9 +5335,7 @@ function onChange(ev) {
   } else if (act === "patch-bool") {
     patch({ [t.getAttribute("data-field")]: t.checked });
   } else if (act === "default-section") {
-    const name = t.value;
-    const els = model.elements.map((el) => (el.section === model.defaultSection ? { ...el, section: name } : el));
-    patch({ defaultSection: name, elements: els });
+    setDefaultSection(t.value);
   } else if (act === "element") {
     const i = Number(t.getAttribute("data-index"));
     const field = t.getAttribute("data-field");
@@ -2845,11 +5385,84 @@ function onChange(ev) {
   } else if (act === "station-field") {
     ui.stationField = t.value;
     render();
+  } else if (act === "beam-shape") {
+    if (!ui.beamDraft) return;
+    ui.beamDraft.shape = t.value;
+    refreshAutoProps(ui.beamDraft);
+    render();
+  } else if (act === "beam-material") {
+    if (!ui.beamDraft) return;
+    ui.beamDraft.material = t.value;
+    updateBeamForm();
+  } else if (act === "beam-override") {
+    const d = ui.beamDraft;
+    if (!d) return;
+    d.override = t.checked;
+    // Start from the calculated values, so only the ones that differ need typing; the fields not
+    // typed in keep following the dimensions.
+    refreshAutoProps(d);
+    render();
+  } else if (act === "gh-token") {
+    lib.token = t.value.trim();
+    if (lib.remember && lib.token) storageSet(GH_TOKEN_KEY, lib.token);
+    // No re-render here: this change fires when the user clicks "Save to GitHub" or "Remember"
+    // straight after pasting, and rebuilding the page would swallow that click. The next render
+    // shows the token as set.
+  } else if (act === "gh-remember") {
+    lib.remember = t.checked;
+    storageSet(GH_TOKEN_KEY, lib.remember && lib.token ? lib.token : null);
+    render();
+  } else if (act === "paste-units" || act === "paste-material") {
+    if (act === "paste-units") ui.pasteUnits = t.value;
+    else ui.pasteMaterial = t.value;
+    if (ui.pasteResult) ui.pasteResult = parseBeamTable(ui.pasteText, ui.pasteUnits, ui.pasteMaterial);
+    render();
+  }
+  // beam-dim, beam-prop, beam-text and paste-text are handled as they are typed (onInput).
+}
+
+// Typing in the beam form recalculates in place; nothing else on the page is rebuilt.
+function onInput(ev) {
+  const t = ev.target;
+  if (!(t instanceof HTMLElement)) return;
+  const act = t.getAttribute("data-act");
+  if (lapseConfirmations(act)) renderWhenIdle();
+  const d = ui.beamDraft;
+  if (act === "beam-dim" && d) {
+    const k = t.getAttribute("data-field");
+    d.raw[k] = t.value;
+    d.rawTyped[k] = true;
+    syncDraftDims(d);
+    updateBeamForm();
+  } else if (act === "beam-prop" && d) {
+    const k = t.getAttribute("data-field");
+    d.props[k] = t.value;
+    d.typed[k] = t.value.trim() !== "";
+    d.typedNow[k] = true;
+    syncDraftDims(d);
+    updateBeamForm();
+  } else if (act === "beam-text" && d) {
+    const k = t.getAttribute("data-field");
+    d[k] = t.value;
+    // Editing never renames a beam behind the user's back: an emptied name stays empty.
+    if (k === "name") d.nameTouched = d.mode === "edit" || t.value.trim() !== "";
+    updateBeamForm();
+  } else if (act === "paste-text") {
+    ui.pasteText = t.value;
+  } else if (act === "gh-token") {
+    lib.token = t.value.trim();
   }
 }
 
 document.addEventListener("click", onClick);
 document.addEventListener("change", onChange);
+document.addEventListener("input", onInput);
+window.addEventListener("storage", onLibraryStorage);
+for (const [type, down] of [["pointerdown", true], ["pointerup", false], ["pointercancel", false], ["mousedown", true], ["mouseup", false]]) {
+  document.addEventListener(type, () => {
+    ui.pointerDown = down;
+  }, true);
+}
 document.addEventListener("change", (ev) => {
   if (ev.target && ev.target.id === "import-file" && ev.target.files?.[0]) {
     importJsonFile(ev.target.files[0]);
@@ -2878,8 +5491,12 @@ window.addEventListener("resize", () => {
   });
 });
 
+hydrateLibrary();
 hydrate();
+ui.bootCopies = new Set(sectionNamesUsed(model).filter((n) => !Object.prototype.hasOwnProperty.call(model.sectionDefs || {}, n)));
+model = syncSectionDefs(model);
 render();
+loadLibrary();
 
   </script>
 </body>

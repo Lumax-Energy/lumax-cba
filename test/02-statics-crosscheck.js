@@ -137,4 +137,5 @@ for (let t = 0; t < 500; t++) {
   if (o.relV > 1e-6 || o.relM > 1e-6) bad.push({ relV: o.relV, relM: o.relM, xV: o.xV, xM: o.xM, lengths, supports, loads });
 }
 console.log(`worst relative ΔV = ${(worst.V * 100).toExponential(3)}%   worst relative ΔM = ${(worst.M * 100).toExponential(3)}%   models over 1e-6: ${bad.length}`);
+process.exitCode = bad.length ? 1 : 0;
 bad.slice(0, 5).forEach((b) => console.log("  ", JSON.stringify(b).slice(0, 400)));

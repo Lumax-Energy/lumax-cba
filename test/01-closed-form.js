@@ -157,3 +157,4 @@ for (const [n, m] of [["3-span", E.simpleThreeSpan()], ["12-span example", E.exc
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);
+process.exitCode = fails ? 1 : 0;
